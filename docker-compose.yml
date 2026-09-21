@@ -1,0 +1,27 @@
+# 마이그레이션을 만들고 서버를 로컬에서 띄울 때 쓰는 PostgreSQL.
+# 통합 테스트는 이것을 쓰지 않는다. Testcontainers가 테스트마다 따로 띄운다.
+#
+#   docker compose up -d
+#   pnpm db:migrate
+#
+# 포트는 5432 대신 55432를 쓴다. 장비에 다른 PostgreSQL이 떠 있어도 부딪히지 않는다.
+services:
+  postgres:
+    image: postgres:18-alpine
+    container_name: help-babyfood-postgres
+    environment:
+      POSTGRES_USER: babyfood
+      POSTGRES_PASSWORD: babyfood
+      POSTGRES_DB: babyfood
+    ports:
+      - '55432:5432'
+    volumes:
+      - postgres-data:/var/lib/postgresql/18/docker
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U babyfood -d babyfood']
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+volumes:
+  postgres-data:

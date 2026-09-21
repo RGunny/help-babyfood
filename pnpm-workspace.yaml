@@ -2,4 +2,12 @@
 minimumReleaseAge: 10080
 
 # 의존성의 빌드 스크립트는 여기에 명시한 패키지만 실행한다. (docs/adr/0001-runtime-and-tooling.md)
-allowBuilds: {}
+# false는 "검토했고 실행하지 않는다"는 뜻이다. 아래 셋 다 스크립트 없이 동작한다.
+allowBuilds:
+  # preinstall이 Node 버전만 확인한다. 26은 목록에 없어 경고만 찍으므로 실행할 이유가 없다.
+  prisma: false
+  # postinstall이 schema engine을 미리 내려받는다. CLI가 첫 generate/migrate 때 온디맨드로 받는다.
+  '@prisma/engines': false
+  # testcontainers -> dockerode -> @grpc/proto-loader -> protobufjs.
+  # postinstall은 의존성의 버전 표기가 다를 때 경고만 출력한다.
+  protobufjs: false

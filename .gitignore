@@ -3,6 +3,9 @@ dist/
 coverage/
 *.tsbuildinfo
 
+# Prisma 생성물. migrate가 generate를 자동 실행하지 않으므로 pnpm prisma:generate로 만든다.
+src/generated/
+
 .env
 .env.*
 !.env.example

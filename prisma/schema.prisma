@@ -1,0 +1,435 @@
+// 도메인 코어(src/domain)의 타입을 그대로 담는 스키마다. enum 값은 도메인의 문자열 리터럴과
+// 글자까지 같게 두어 매퍼에 변환 계층이 생기지 않게 한다.
+//
+// Prisma 스키마 언어에 없는 것은 마이그레이션 SQL에 손으로 덧붙인다.
+//   - CHECK 제약 (원장 부호, 수량 하한, 시각 형식, 재료 쌍 정규화, 수행자)
+//   - 부분 인덱스 (대표 이름 유일성, 잔여가 있는 배치)
+
+generator client {
+  provider            = "prisma-client"
+  output              = "../src/generated/prisma"
+  moduleFormat        = "esm"
+  importFileExtension = "js"
+}
+
+// 접속 URL은 prisma7.config.ts의 datasource.url에 있다. v7에서 스키마의 url은 deprecated다.
+datasource db {
+  provider = "postgresql"
+}
+
+enum MealSlot {
+  morning
+  afternoon
+
+  @@map("meal_slot")
+}
+
+enum IngredientCategory {
+  base
+  meat
+  vegetable
+  high_risk_allergen
+
+  @@map("ingredient_category")
+}
+
+enum LedgerEntryType {
+  received
+  meal_consumed
+  consumption_reverted
+  discarded
+  count_adjusted
+
+  @@map("ledger_entry_type")
+}
+
+enum MealStatus {
+  planned
+  consumed
+
+  @@map("meal_status")
+}
+
+enum CompositionKind {
+  planned
+  actual
+
+  @@map("composition_kind")
+}
+
+enum FeedingReactionResult {
+  clear
+  reacted
+
+  @@map("feeding_reaction_result")
+}
+
+enum PairingScope {
+  same_meal
+  same_day
+
+  @@map("pairing_scope")
+}
+
+/// 원장을 바꾼 주체. 스케줄러가 도는 정합화에는 구성원이 없다.
+enum ActorSource {
+  member
+  scheduler
+
+  @@map("actor_source")
+}
+
+/// 일관성 경계. 모든 쓰기 트랜잭션이 이 행을 FOR UPDATE로 잠근다.
+model Household {
+  id        String   @id @default(uuid(7)) @db.Uuid
+  name      String
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  members           Member[]
+  ingredients       Ingredient[]
+  ingredientLabels  IngredientLabel[]
+  menus             Menu[]
+  cookedBatches     CookedBatch[]
+  ledgerEntries     StockLedgerEntry[]
+  slotSchedules     SlotSchedule[]
+  meals             Meal[]
+  noFeedRecords     NoFeedRecord[]
+  feedingReactions  FeedingReaction[]
+  planningRules     MealPlanningRules?
+  forbiddenPairings ForbiddenPairing[]
+  alertSettings     AlertSettings?
+  thresholds        IngredientThreshold[]
+  idempotency       IdempotencyRecord[]
+
+  @@map("household")
+}
+
+model Member {
+  id          String   @id @default(uuid(7)) @db.Uuid
+  householdId String   @map("household_id") @db.Uuid
+  name        String
+  /// Slack 버튼 응답을 구성원에 매핑한다.
+  slackUserId String?  @unique @map("slack_user_id")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  household        Household          @relation(fields: [householdId], references: [id])
+  ledgerEntries    StockLedgerEntry[]
+  noFeedRecords    NoFeedRecord[]
+  feedingReactions FeedingReaction[]
+  cookedBatches    CookedBatch[]
+  meals            Meal[]
+
+  @@index([householdId])
+  @@map("member")
+}
+
+model Ingredient {
+  id                String             @id @default(uuid(7)) @db.Uuid
+  householdId       String             @map("household_id") @db.Uuid
+  name              String
+  category          IngredientCategory
+  /// 현재 1회분 중량. 큐브 중량이 이 값과 다른 배치는 자동 차감에서 빠진다.
+  servingWeightGram Int                @map("serving_weight_gram")
+  /// 이관 때 이미 검증이 끝난 재료로 등록했다. 급여 이력이 없어도 검증완료로 시작한다.
+  verifiedBeforeMigration Boolean      @default(false) @map("verified_before_migration")
+  createdAt         DateTime           @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt         DateTime           @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  household        Household             @relation(fields: [householdId], references: [id])
+  labels           IngredientLabel[]
+  menuComponents   MenuComponent[]
+  cookedBatches    CookedBatch[]
+  mealToppings     MealTopping[]
+  feedingReactions FeedingReaction[]
+  threshold        IngredientThreshold?
+  pairingsAsA      ForbiddenPairing[]    @relation("pairing_a")
+  pairingsAsB      ForbiddenPairing[]    @relation("pairing_b")
+
+  @@index([householdId])
+  @@map("ingredient")
+}
+
+/// 재료의 모든 호칭. 대표 이름도 한 행으로 들어간다. "브로컬리"가 두 재료에 붙는 것을
+/// UNIQUE(household_id, normalized_label)로 DB가 막는다.
+model IngredientLabel {
+  id           String  @id @default(uuid(7)) @db.Uuid
+  householdId  String  @map("household_id") @db.Uuid
+  ingredientId String  @map("ingredient_id") @db.Uuid
+  label        String
+  /// 도메인의 normalizeIngredientName과 같은 값. NFC 정규화 때문에 애플리케이션이 계산한다.
+  normalizedLabel String @map("normalized_label")
+  isCanonical  Boolean @map("is_canonical")
+  /// aliases 배열의 순서를 보존한다. 대표 이름은 0이다.
+  position     Int
+
+  household  Household  @relation(fields: [householdId], references: [id])
+  ingredient Ingredient @relation(fields: [ingredientId], references: [id], onDelete: Cascade)
+
+  @@unique([householdId, normalizedLabel])
+  @@unique([ingredientId, position])
+  @@index([ingredientId])
+  @@map("ingredient_label")
+}
+
+model Menu {
+  id          String   @id @default(uuid(7)) @db.Uuid
+  householdId String   @map("household_id") @db.Uuid
+  name        String
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  household   Household       @relation(fields: [householdId], references: [id])
+  components  MenuComponent[]
+  plannedFor  Meal[]
+  actualFor   MealActual[]
+
+  @@unique([householdId, name])
+  @@map("menu")
+}
+
+model MenuComponent {
+  menuId       String @map("menu_id") @db.Uuid
+  ingredientId String @map("ingredient_id") @db.Uuid
+  cubes        Int
+
+  menu       Menu       @relation(fields: [menuId], references: [id], onDelete: Cascade)
+  ingredient Ingredient @relation(fields: [ingredientId], references: [id])
+
+  @@id([menuId, ingredientId])
+  @@index([ingredientId])
+  @@map("menu_component")
+}
+
+/// 재고의 단위. 같은 날 만든 같은 재료의 큐브는 구분하지 않는다.
+model CookedBatch {
+  id              String   @id @default(uuid(7)) @db.Uuid
+  householdId     String   @map("household_id") @db.Uuid
+  ingredientId    String   @map("ingredient_id") @db.Uuid
+  cubeWeightGram  Int      @map("cube_weight_gram")
+  cookedOn        DateTime @map("cooked_on") @db.Date
+  /// 원장 delta의 합을 같은 트랜잭션에서 유지하는 투영. CHECK(>= 0)이 음수 재고를 막고,
+  /// 잔여가 있는 배치를 인덱스로 찾게 해 준다. 진실의 원천은 여전히 원장이다.
+  remainingCubes  Int      @default(0) @map("remaining_cubes")
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  createdByMemberId String? @map("created_by_member_id") @db.Uuid
+
+  household     Household          @relation(fields: [householdId], references: [id])
+  ingredient    Ingredient         @relation(fields: [ingredientId], references: [id])
+  // 수행자 기록이 조용히 사라지면 안 되므로 SET NULL이 아니라 Restrict다.
+  createdBy     Member?            @relation(fields: [createdByMemberId], references: [id], onDelete: Restrict)
+  ledgerEntries StockLedgerEntry[]
+
+  @@index([householdId, ingredientId, cookedOn])
+  @@map("cooked_batch")
+}
+
+/// 수량 변화는 전부 여기에 쌓고 잔여는 합으로 계산한다. 되돌리기는 반대 이벤트를 더하는 것으로 끝난다.
+model StockLedgerEntry {
+  id       String          @id @default(uuid(7)) @db.Uuid
+  householdId String       @map("household_id") @db.Uuid
+  batchId  String          @map("batch_id") @db.Uuid
+  type     LedgerEntryType
+  /// 양수는 큐브를 더하고 음수는 뺀다. 유형별 부호는 CHECK 제약이 강제한다.
+  delta    Int
+  /// meal_consumed와 consumption_reverted에는 반드시 있다. 해동 후 미급여 폐기에도 붙는다.
+  mealId   String?         @map("meal_id") @db.Uuid
+  reason   String?
+  /// 해동 후 미급여로 생긴 폐기와 그 되돌림을 묶는 태그("2026-08-20/morning").
+  /// 미급여 기록을 지운 뒤에도 연결이 남아야 하므로 FK가 아니라 문자열이다.
+  noFeedKey String?        @map("no_feed_key")
+
+  actorSource   ActorSource @map("actor_source")
+  actorMemberId String?     @map("actor_member_id") @db.Uuid
+  occurredAt    DateTime    @default(now()) @map("occurred_at") @db.Timestamptz(3)
+
+  household Household   @relation(fields: [householdId], references: [id])
+  batch     CookedBatch @relation(fields: [batchId], references: [id])
+  // SET NULL이면 식단을 지울 때 소비 내역이 원장에 남은 채 주인을 잃어 재고가 틀어진다.
+  meal      Meal?       @relation(fields: [mealId], references: [id], onDelete: Restrict)
+  actor     Member?     @relation(fields: [actorMemberId], references: [id], onDelete: Restrict)
+
+  @@index([householdId, batchId])
+  @@index([mealId])
+  @@index([householdId, noFeedKey])
+  @@map("stock_ledger_entry")
+}
+
+/// 끼니의 시작일과 식단시간. 식단의 날짜는 저장하지 않고 여기서 계산한다.
+model SlotSchedule {
+  householdId String   @map("household_id") @db.Uuid
+  slot        MealSlot
+  startDate   DateTime @map("start_date") @db.Date
+  /// Asia/Seoul 벽시계 HH:mm. TIME은 왕복이 지저분해서 문자열로 둔다.
+  mealTime    String   @map("meal_time") @db.VarChar(5)
+
+  household Household @relation(fields: [householdId], references: [id])
+
+  @@id([householdId, slot])
+  @@map("slot_schedule")
+}
+
+/// 식단의 정체성은 날짜가 아니라 끼니 안의 순서다.
+model Meal {
+  id          String     @id @default(uuid(7)) @db.Uuid
+  householdId String     @map("household_id") @db.Uuid
+  slot        MealSlot
+  /// 1부터 시작하는 끼니 안의 위치. "order"는 예약어라 칼럼명을 바꾼다.
+  mealOrder   Int        @map("meal_order")
+  plannedBaseMenuId String? @map("planned_base_menu_id") @db.Uuid
+  memo        String?
+  status      MealStatus @default(planned)
+  /// 서비스 이전에 먹인 식단. 급여 이력으로만 세고 원장은 건드리지 않는다.
+  migrated    Boolean    @default(false)
+  createdAt   DateTime   @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt   DateTime   @updatedAt @map("updated_at") @db.Timestamptz(3)
+  updatedByMemberId String? @map("updated_by_member_id") @db.Uuid
+
+  household        Household          @relation(fields: [householdId], references: [id])
+  // SET NULL이면 메뉴를 지울 때 식단 구성이 조용히 바뀐다.
+  plannedBaseMenu  Menu?              @relation(fields: [plannedBaseMenuId], references: [id], onDelete: Restrict)
+  updatedBy        Member?            @relation(fields: [updatedByMemberId], references: [id], onDelete: Restrict)
+  actual           MealActual?
+  toppings         MealTopping[]
+  ledgerEntries    StockLedgerEntry[]
+  feedingReactions FeedingReaction[]
+
+  @@unique([householdId, slot, mealOrder])
+  @@map("meal")
+}
+
+/// 행의 존재 자체가 "실제 급여 내용이 입력됐다"는 뜻이다. 베이스가 없는 실제 급여와
+/// 실제 급여가 아예 없는 것을 구분하기 위해 별도 테이블로 둔다.
+model MealActual {
+  mealId           String  @id @map("meal_id") @db.Uuid
+  actualBaseMenuId String? @map("actual_base_menu_id") @db.Uuid
+
+  meal           Meal  @relation(fields: [mealId], references: [id], onDelete: Cascade)
+  actualBaseMenu Menu? @relation(fields: [actualBaseMenuId], references: [id], onDelete: Restrict)
+
+  @@map("meal_actual")
+}
+
+/// 토핑은 재료마다 큐브 1개다. position으로 순서를 보존해 도메인의 배열과 그대로 왕복한다.
+model MealTopping {
+  mealId       String          @map("meal_id") @db.Uuid
+  kind         CompositionKind
+  position     Int
+  ingredientId String          @map("ingredient_id") @db.Uuid
+
+  meal       Meal       @relation(fields: [mealId], references: [id], onDelete: Cascade)
+  ingredient Ingredient @relation(fields: [ingredientId], references: [id])
+
+  @@id([mealId, kind, position])
+  @@index([ingredientId])
+  @@map("meal_topping")
+}
+
+/// 먹이지 못한 끼니. 식단은 취소되지 않고 다음 날로 밀린다.
+model NoFeedRecord {
+  householdId String   @map("household_id") @db.Uuid
+  date        DateTime @db.Date
+  slot        MealSlot
+  /// 큐브를 이미 해동했으면 되돌릴 수 없어 폐기로 기록한다.
+  thawed      Boolean
+  reason      String?
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  createdByMemberId String? @map("created_by_member_id") @db.Uuid
+
+  household Household @relation(fields: [householdId], references: [id])
+  createdBy Member?   @relation(fields: [createdByMemberId], references: [id], onDelete: Restrict)
+
+  @@id([householdId, date, slot])
+  @@map("no_feed_record")
+}
+
+model FeedingReaction {
+  id           String                @id @default(uuid(7)) @db.Uuid
+  householdId  String                @map("household_id") @db.Uuid
+  mealId       String                @map("meal_id") @db.Uuid
+  ingredientId String                @map("ingredient_id") @db.Uuid
+  result       FeedingReactionResult
+  symptomMemo  String?               @map("symptom_memo")
+  createdAt    DateTime              @default(now()) @map("created_at") @db.Timestamptz(3)
+  createdByMemberId String?          @map("created_by_member_id") @db.Uuid
+
+  household  Household  @relation(fields: [householdId], references: [id])
+  meal       Meal       @relation(fields: [mealId], references: [id])
+  ingredient Ingredient @relation(fields: [ingredientId], references: [id])
+  createdBy  Member?    @relation(fields: [createdByMemberId], references: [id], onDelete: Restrict)
+
+  @@unique([mealId, ingredientId])
+  @@index([householdId, ingredientId])
+  @@map("feeding_reaction")
+}
+
+/// 서버가 검증하는 구조화된 제약. 에이전트가 읽는 텍스트 가이드도 함께 둔다.
+model MealPlanningRules {
+  householdId String    @id @map("household_id") @db.Uuid
+  textGuidance String?  @map("text_guidance")
+  maxFirstIntroductionsPerDay Int? @map("max_first_introductions_per_day")
+  firstIntroductionSlot MealSlot?  @map("first_introduction_slot")
+  updatedAt   DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  household Household @relation(fields: [householdId], references: [id])
+
+  @@map("meal_planning_rules")
+}
+
+model ForbiddenPairing {
+  id            String       @id @default(uuid(7)) @db.Uuid
+  householdId   String       @map("household_id") @db.Uuid
+  /// 같은 쌍이 순서만 바꿔 두 번 들어가지 않도록 a < b로 정규화한다(CHECK).
+  ingredientAId String       @map("ingredient_a_id") @db.Uuid
+  ingredientBId String       @map("ingredient_b_id") @db.Uuid
+  scope         PairingScope
+
+  household   Household  @relation(fields: [householdId], references: [id])
+  ingredientA Ingredient @relation("pairing_a", fields: [ingredientAId], references: [id])
+  ingredientB Ingredient @relation("pairing_b", fields: [ingredientBId], references: [id])
+
+  @@unique([householdId, ingredientAId, ingredientBId, scope])
+  @@index([ingredientBId])
+  @@map("forbidden_pairing")
+}
+
+model AlertSettings {
+  householdId   String   @id @map("household_id") @db.Uuid
+  /// 브리프를 보내는 Asia/Seoul 벽시계 HH:mm.
+  briefTime     String   @map("brief_time") @db.VarChar(5)
+  /// 임계일까지의 일수. 모든 재료 공통이다.
+  shelfLifeDays Int      @map("shelf_life_days")
+  updatedAt     DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  household Household @relation(fields: [householdId], references: [id])
+
+  @@map("alert_settings")
+}
+
+/// 식단이 비어 있어 소진을 예측할 수 없는 기간을 위한 보조 기준.
+model IngredientThreshold {
+  householdId    String @map("household_id") @db.Uuid
+  ingredientId   String @id @map("ingredient_id") @db.Uuid
+  thresholdCubes Int    @map("threshold_cubes")
+
+  household  Household  @relation(fields: [householdId], references: [id])
+  ingredient Ingredient @relation(fields: [ingredientId], references: [id], onDelete: Cascade)
+
+  @@index([householdId])
+  @@map("ingredient_threshold")
+}
+
+/// LLM은 같은 호출을 재시도한다. 효과와 같은 트랜잭션에 기록해 두고 같은 응답을 돌려준다.
+model IdempotencyRecord {
+  householdId String   @map("household_id") @db.Uuid
+  key         String
+  operation   String
+  /// 같은 키에 다른 본문이 오면 거부하기 위한 요청 본문 해시.
+  requestHash String   @map("request_hash")
+  response    Json
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  household Household @relation(fields: [householdId], references: [id])
+
+  @@id([householdId, key])
+  @@map("idempotency_record")
+}
