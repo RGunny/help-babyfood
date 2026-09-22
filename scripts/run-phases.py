@@ -144,6 +144,8 @@ def commit_phase(task_name: str, task_dir_name: str, phase_num: int, phase_name:
     runner_files = [
         f"tasks/{task_dir_name}/phase{phase_num}-output.json",
         f"tasks/{task_dir_name}/index.json",
+        # docs-diff.md도 러너가 만든다. 세션의 커밋에 섞이면 "세션이 쓴 것"처럼 보인다.
+        f"tasks/{task_dir_name}/docs-diff.md",
         "tasks/index.json",
     ]
 
@@ -169,8 +171,16 @@ def commit_phase(task_name: str, task_dir_name: str, phase_num: int, phase_name:
 # ---------------------------------------------------------------------------
 
 class Spinner:
+    """
+    돌아가는 동안 뭔가 살아 있다는 것을 보인다.
+
+    터미널이 아닌 곳으로 출력이 가면 돌리지 않는다. 회전자는 같은 줄을 지우고 다시 쓰는
+    방식이라, 파일이나 파이프로 가면 프레임이 전부 쌓여 로그가 그것으로만 찬다.
+    """
+
     def __init__(self, message: str):
         self._message = message
+        self._enabled = sys.stderr.isatty()
         self._stop = threading.Event()
         self._thread = threading.Thread(target=self._spin, daemon=True)
         self._start = 0.0
@@ -187,12 +197,16 @@ class Spinner:
 
     def __enter__(self) -> "Spinner":
         self._start = time.monotonic()
-        self._thread.start()
+        if self._enabled:
+            self._thread.start()
+        else:
+            print(f"  시작 {self._message}", flush=True)
         return self
 
     def __exit__(self, *_) -> None:
-        self._stop.set()
-        self._thread.join()
+        if self._enabled:
+            self._stop.set()
+            self._thread.join()
 
     @property
     def elapsed(self) -> float:
@@ -418,13 +432,17 @@ def main() -> None:
         print(f"  완료 phase {phase_num}: {phase_name} [{elapsed}s]")
 
     index = load_index(index_file)
-    index["completed_at"] = now_iso()
-    save_index(index_file, index)
-    update_top_index(task_dir_name, "completed")
+    already_done = "completed_at" in index
+    if not already_done:
+        index["completed_at"] = now_iso()
+        save_index(index_file, index)
+        update_top_index(task_dir_name, "completed")
 
-    git("add", "-A")
-    if git("diff", "--cached", "--quiet").returncode != 0:
-        git("commit", "-m", f"chore({task_name}): mark the task completed")
+        # 두 파일만 담는다. `git add -A`로 쓸어 담으면 마침 작업 트리에 있던 남의 변경이
+        # "task completed"라는 이름으로 커밋된다. 실제로 한 번 그렇게 됐다.
+        git("add", "--", str(index_file.relative_to(ROOT)), "tasks/index.json")
+        if git("diff", "--cached", "--quiet").returncode != 0:
+            git("commit", "-m", f"chore({task_name}): mark the task completed")
 
     print(f"\n{'=' * 64}")
     print(f"  {task_dir_name}: phase 전부 완료")
