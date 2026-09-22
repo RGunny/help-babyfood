@@ -71,8 +71,9 @@
     {
       "phase": 7,
       "name": "break-it",
-      "status": "pending",
-      "requiresDocker": true
+      "status": "completed",
+      "requiresDocker": true,
+      "started_at": "2026-09-23T02:31:46+0900"
     }
   ]
 }

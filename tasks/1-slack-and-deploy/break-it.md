@@ -6,9 +6,9 @@ phase 7에서 세 가지 고장을 하나씩 넣고, phase 파일이 지목한 �
 |---|---|---|---|
 | 1 | 브리프 클레임에서 `ON CONFLICT` 삭제 | 잡았다 | 23개 통과 |
 | 2 | 서명 비교를 `timingSafeEqual` 대신 `true`로 | 잡았다 | 12개 통과 |
-| 3 | 멱등키에서 `value` 삭제 | **못 잡았다** | 12개 통과 |
+| 3 | 멱등키에서 `value` 삭제 | **못 잡았다**. 새로 더한 두 테스트가 잡는다 | 14개 통과 |
 
-3번은 단위 테스트가 잡는다. 지목한 통합 테스트는 잡지 못하고, 잡는 통합 테스트를 만들어 확인했지만 그 테스트는 저장소에 남기지 않았다. 이유와 diff는 3번 절에 있다.
+3번은 단위 테스트가 잡는다. 지목한 통합 테스트는 잡지 못했다. 그래서 `action_id`가 실제로 겹치는 반응 버튼과 미급여 버튼의 통합 테스트를 `test/integration/slack-interactions.int-spec.ts`에 더했고, 고장을 넣으면 둘 다 실패하는 것을 확인했다. 자세한 내용은 3번 절에 있다.
 
 ## 1. 브리프 클레임의 `ON CONFLICT`
 
@@ -103,63 +103,49 @@ AssertionError: expected 'slack:1758493800.000100:discard.1' to be 'slack:175849
 AssertionError: expected 'slack:1758493800.000100:discard.1' not to be 'slack:1758493800.000100:discard.1' // Object.is equality
 ```
 
-나머지 셋("미급여 버튼은 미급여 등록을 부른다", "반응 버튼은 재료 id를 이름으로 바꿔 반응 기록을 부른다", "폐기 버튼은 임계일 초과 사유로 배치 폐기를 부른다")은 유스케이스에 넘긴 `idempotencyKey`를 비교하다 실패했다. 두 번째 테스트는 두 탭에 같은 `action_id`(`discard.1`)를 주므로 `value`가 빠진 것을 본다. 이 회귀는 스위트 전체로는 잡힌다. 실제 HTTP 경로와 DB의 멱등키 저장까지 거쳐 잡는 테스트만 없다.
+나머지 셋("미급여 버튼은 미급여 등록을 부른다", "반응 버튼은 재료 id를 이름으로 바꿔 반응 기록을 부른다", "폐기 버튼은 임계일 초과 사유로 배치 폐기를 부른다")은 유스케이스에 넘긴 `idempotencyKey`를 비교하다 실패했다. 두 번째 테스트는 두 탭에 같은 `action_id`(`discard.1`)를 주므로 `value`가 빠진 것을 본다. 이 회귀는 스위트 전체로는 잡힌다. 실제 HTTP 경로와 DB의 멱등키 저장까지 거쳐 잡는 테스트는 없었다. 그것을 아래에서 더했다.
 
-### 잡는 통합 테스트를 만들어 확인했다
+### 겹치는 `action_id`를 보는 통합 테스트를 더했다
 
-고장이 들어간 채로 아래 테스트를 `test/integration/slack-interactions.int-spec.ts`에 임시로 더했다. 후속 메시지 한 건(`message.ts`가 같음)에서 두 재료의 "이상 없음"을 누른다. 두 탭 모두 `action_id`가 `reaction.0`이다.
+지목했던 테스트가 이 고장을 놓친 이유는 폐기 버튼에 있다. 폐기 버튼의 `ordinal`은 폐기 대기 배치의 index라 한 메시지 안에서 겹치지 않는다. 그래서 `value`가 없어도 키가 갈린다. `value`가 실제로 막고 있는 것은 반응 버튼과 미급여 버튼이다. 두 버튼은 재료마다, 끼니마다 같은 `ordinal` 쌍이 반복된다. 그래서 `test/integration/slack-interactions.int-spec.ts`의 "Slack 버튼 응답"에 두 테스트를 더했다. 기존 테스트와 픽스처는 고치지 않았다.
 
-```diff
-+  it('같은 후속 메시지의 두 재료에 "이상 없음"을 누르면 둘 다 기록된다', async () => {
-+    const { house, slackUserId } = await linkedHousehold();
-+    await feedThroughAugust18(house);
-+    const path = responsePath();
-+
-+    // render-reaction-prompt.ts는 재료마다 actions 블록을 따로 두므로 두 버튼의 action_id가 같다.
-+    for (const name of ['소고기', '브로콜리']) {
-+      await tap({
-+        slackUserId,
-+        button: reactionButton(house, '2026-08-17', name, 'clear'),
-+        messageTs: '1755392400.000300',
-+        responsePath: path,
-+      });
-+    }
-+    const messages = await inbox.waitFor(path, 2);
-+
-+    expect(messages.map((message) => message.text).sort()).toEqual([
-+      '2026-08-17 오전 브로콜리: 이상 없음으로 기록했습니다',
-+      '2026-08-17 오전 소고기: 이상 없음으로 기록했습니다',
-+    ]);
-+    const reactions = await services.prisma.feedingReaction.findMany({
-+      where: { householdId: house.id },
-+      select: { ingredientId: true },
-+    });
-+    expect(reactions.map((reaction) => reaction.ingredientId).sort()).toEqual(
-+      [house.ingredientId('소고기'), house.ingredientId('브로콜리')].sort(),
-+    );
-+  });
-```
+- **"같은 후속 메시지의 두 재료에 "이상 없음"을 누르면 둘 다 기록된다"**: `message.ts`가 `1755392400.000300`인 한 메시지에서 `소고기`와 `브로콜리`의 "이상 없음"을 차례로 누른다. 두 탭의 `action_id`는 둘 다 `reaction.0`이고 `value`의 재료 id만 다르다. 테스트 안에서도 두 버튼의 `action_id`가 `reaction.0` 하나뿐인지 먼저 단정한다. 그다음 두 응답 문장과 `feeding_reaction` 두 행을 확인한다. 재료는 픽스처 식단의 토핑(`소고기`, `브로콜리`)으로 골랐다. `애호박`은 식단에 없어 고장과 무관하게 거부된다.
+- **"같은 브리프의 오전과 오후에 "미급여(해동 전)"을 누르면 둘 다 기록된다"**: `seedHousehold`는 오전만 연다. 그래서 테스트 안에서 `MealSlotService.start`로 오후(8/17 시작, 18:00)를 열고 `MealPlanService.appendMeals`로 오후 식단 한 끼를 붙였다. 그다음 한 메시지(`1755388800.000400`)에서 오전과 오후의 "미급여(해동 전)"을 누른다. 두 탭의 `action_id`는 둘 다 `no_feed.0`이고 `value`의 끼니만 다르다. 두 응답 문장과 `no_feed_record`의 `morning`, `afternoon` 두 행을 확인한다.
 
-응답은 200을 보낸 뒤 비동기로 처리되어 도착 순서가 보장되지 않는다. 그래서 문장은 정렬해서 비교한다. 이 정렬은 단정을 느슨하게 하지 않는다. 두 문장이 모두 와야 하는 것은 그대로다.
+응답은 200을 보낸 뒤 비동기로 처리되어 도착 순서가 보장되지 않는다. 그래서 문장은 정렬해서 비교한다. 두 문장이 모두 와야 한다는 단정은 그대로다.
 
-처음 시도에서는 재료로 `애호박`을 골랐다. 그러자 고장과 무관하게 `처리하지 못했습니다: 그 식단에 없는 재료입니다: 애호박`으로 실패했다. 픽스처의 식단 토핑이 `소고기`와 `브로콜리`이기 때문이다(`test/integration/setup/fixtures.ts`). 재료를 고친 뒤, 고장이 들어간 채로 돌린 결과는 이렇다.
+고장을 넣기 전, 두 테스트를 더한 파일은 `Tests  14 passed (14)`였다.
+
+### 고장을 넣으면 두 테스트가 실패한다
+
+위 diff대로 `idempotencyKeyOf`에서 `value`를 빼고 같은 파일을 돌렸다. 출력은 이렇다.
 
 ```
-     × 같은 후속 메시지의 두 재료에 "이상 없음"을 누르면 둘 다 기록된다 173ms
+ ❯ |integration| test/integration/slack-interactions.int-spec.ts (14 tests | 2 failed) 2221ms
+     × 같은 후속 메시지의 두 재료에 "이상 없음"을 누르면 둘 다 기록된다 168ms
+     × 같은 브리프의 오전과 오후에 "미급여(해동 전)"을 누르면 둘 다 기록된다 152ms
 
+ FAIL  |integration| test/integration/slack-interactions.int-spec.ts > Slack 버튼 응답 > 같은 후속 메시지의 두 재료에 "이상 없음"을 누르면 둘 다 기록된다
 AssertionError: expected [ …(2) ] to deeply equal [ …(2) ]
   [
     "2026-08-17 오전 브로콜리: 이상 없음으로 기록했습니다",
 -   "2026-08-17 오전 소고기: 이상 없음으로 기록했습니다",
 +   "처리하지 못했습니다: 같은 멱등키에 다른 요청이 왔습니다: slack:1755392400.000300:reaction.0",
   ]
-      Tests  1 failed | 12 passed (13)
+
+ FAIL  |integration| test/integration/slack-interactions.int-spec.ts > Slack 버튼 응답 > 같은 브리프의 오전과 오후에 "미급여(해동 전)"을 누르면 둘 다 기록된다
+AssertionError: expected [ …(2) ] to deeply equal [ …(2) ]
+  [
+    "2026-08-17 오전 미급여(해동 전)를 기록했습니다",
+-   "2026-08-17 오후 미급여(해동 전)를 기록했습니다",
++   "처리하지 못했습니다: 같은 멱등키에 다른 요청이 왔습니다: slack:1755388800.000400:no_feed.0",
+  ]
+
+      Tests  2 failed | 12 passed (14)
 ```
 
-`src/slack/inbound/action-dispatch.ts`만 되돌리고 같은 파일을 돌리자 `Tests  13 passed (13)`였다. 이 테스트는 고장이 있으면 실패하고 올바른 코드에서는 통과한다.
+두 번째 탭이 `IDEMPOTENCY_KEY_REUSED`로 거부됐다. 거부 문장에 찍힌 키가 `value` 없는 `slack:{ts}:reaction.0`, `slack:{ts}:no_feed.0`이다. 두 테스트가 이 규칙을 보고 있다는 뜻이다. 폐기 버튼 테스트를 포함한 나머지 12개는 이번에도 통과했다.
 
-### 이 테스트를 저장소에 남기지 않은 이유
+### 되돌린 뒤
 
-phase 7은 "`src/`, `test/`, `prisma/`를 최종적으로 바꾸지 마라"를 금지 사항으로 두고, 핵심 AC로 `git diff --quiet HEAD -- test/`를 검사한다. 한편 "잡지 못했으면 테스트를 고쳐서 잡히게 만든다"도 요구한다. 두 지시는 이 경우에 함께 지킬 수 없다. 이 phase는 AC를 지키는 쪽을 택해 테스트를 되돌렸다. 테스트를 들일지는 사람이 정한다. 위 diff를 그대로 적용하면 된다. 오전과 오후의 `no_feed.0`에 대한 같은 모양의 테스트도 함께 두는 것이 좋다.
-
-되돌린 뒤 `test/integration/slack-interactions.int-spec.ts`는 `Tests  12 passed (12)`였다. `git diff --quiet HEAD -- src/`, `-- test/`, `-- prisma/`는 셋 다 차이가 없었다.
+`git checkout -- src/slack/inbound/action-dispatch.ts`로 되돌렸다. `git diff --quiet HEAD -- src/`는 차이가 없었다. 같은 파일을 다시 돌리자 `Tests  14 passed (14)`였다.

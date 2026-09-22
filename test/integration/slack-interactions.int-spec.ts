@@ -8,12 +8,13 @@ import { ClockPort } from '../../src/application/ports/clock.port.js';
 import { CLOCK } from '../../src/application/ports/tokens.js';
 import { AppEnv } from '../../src/config/env.js';
 import { localDate } from '../../src/domain/shared/local-date.js';
+import { localTime } from '../../src/domain/shared/local-time.js';
 import { APP_ENV } from '../../src/infrastructure/prisma/prisma.service.js';
 import { actionId, encodeDiscard, encodeNoFeed, encodeReaction } from '../../src/slack/actions.js';
 import { UNKNOWN_SLACK_USER } from '../../src/slack/inbound/action-dispatch.js';
 import { SIGNATURE_TOLERANCE_SECONDS } from '../../src/slack/inbound/signature.js';
 import { testDatabaseUrl } from './setup/database.js';
-import { Household, INGREDIENTS, TestServices, at, buildServices, seedHousehold } from './setup/fixtures.js';
+import { Household, INGREDIENTS, MENU_NAME, TestServices, at, buildServices, seedHousehold } from './setup/fixtures.js';
 
 // Slack 버튼 응답의 수신 경로를 실제 AppModule로 본다. 처리는 200을 보낸 뒤에 일어나므로
 // 기다릴 관문이 필요하고, 그 관문은 가짜 response_url이 ephemeral을 받은 순간이다. 원장과 기록은
@@ -287,6 +288,73 @@ describe('Slack 버튼 응답', () => {
       select: { batchId: true },
     });
     expect(discarded.map((entry) => entry.batchId).sort()).toEqual(batches.map((batch) => batch.id).sort());
+  });
+
+  it('같은 후속 메시지의 두 재료에 "이상 없음"을 누르면 둘 다 기록된다', async () => {
+    const { house, slackUserId } = await linkedHousehold();
+    await feedThroughAugust18(house);
+    const path = responsePath();
+
+    // render-reaction-prompt.ts는 재료마다 actions 블록을 따로 두므로 두 버튼의 action_id가
+    // 둘 다 reaction.0이다. message.ts도 같으니 두 탭을 가르는 것은 value뿐이다.
+    const buttons = ['소고기', '브로콜리'].map((name) => reactionButton(house, '2026-08-17', name, 'clear'));
+    expect(new Set(buttons.map((button) => button.actionId))).toEqual(new Set(['reaction.0']));
+    for (const button of buttons) {
+      await tap({ slackUserId, button, messageTs: '1755392400.000300', responsePath: path });
+    }
+    const messages = await inbox.waitFor(path, 2);
+
+    // 응답은 200 뒤에 비동기로 오므로 도착 순서가 보장되지 않는다.
+    expect(messages.map((message) => message.text).sort()).toEqual([
+      '2026-08-17 오전 브로콜리: 이상 없음으로 기록했습니다',
+      '2026-08-17 오전 소고기: 이상 없음으로 기록했습니다',
+    ]);
+    const reactions = await services.prisma.feedingReaction.findMany({
+      where: { householdId: house.id },
+      select: { ingredientId: true },
+    });
+    expect(reactions.map((reaction) => reaction.ingredientId).sort()).toEqual(
+      [house.ingredientId('소고기'), house.ingredientId('브로콜리')].sort(),
+    );
+  });
+
+  it('같은 브리프의 오전과 오후에 "미급여(해동 전)"을 누르면 둘 다 기록된다', async () => {
+    const { house, slackUserId } = await linkedHousehold();
+    await services.mealSlot.start({
+      householdId: house.id,
+      actor: house.actor,
+      slot: 'afternoon',
+      startDate: localDate('2026-08-17'),
+      mealTime: localTime('18:00'),
+    });
+    await services.mealPlan.appendMeals({
+      householdId: house.id,
+      actor: house.actor,
+      slot: 'afternoon',
+      meals: [{ composition: { baseMenuName: MENU_NAME, toppingIngredientNames: ['소고기', '브로콜리'] } }],
+    });
+    const path = responsePath();
+
+    // render-brief.ts는 끼니마다 no_feed.0(해동 전)과 no_feed.1(해동 후)을 붙인다. 두 끼니의
+    // 해동 전 버튼은 action_id가 둘 다 no_feed.0이고 value의 끼니만 다르다.
+    const buttons = (['morning', 'afternoon'] as const).map((slot): Button => ({
+      actionId: actionId('no_feed', 0),
+      value: encodeNoFeed(localDate('2026-08-17'), slot, false),
+    }));
+    for (const button of buttons) {
+      await tap({ slackUserId, button, messageTs: '1755388800.000400', responsePath: path });
+    }
+    const messages = await inbox.waitFor(path, 2);
+
+    expect(messages.map((message) => message.text).sort()).toEqual([
+      '2026-08-17 오전 미급여(해동 전)를 기록했습니다',
+      '2026-08-17 오후 미급여(해동 전)를 기록했습니다',
+    ]);
+    const records = await services.prisma.noFeedRecord.findMany({
+      where: { householdId: house.id },
+      select: { slot: true },
+    });
+    expect(records.map((record) => record.slot).sort()).toEqual(['afternoon', 'morning']);
   });
 
   it('같은 버튼을 두 번 탭하면 한 번만 기록되고 두 번째 응답도 ephemeral로 온다', async () => {
