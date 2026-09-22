@@ -8,6 +8,7 @@ export type ApplicationErrorCode =
   | 'HOUSEHOLD_NOT_FOUND'
   | 'MENU_NAME_TAKEN'
   | 'MEAL_NOT_FED'
+  | 'SLOT_NOT_EMPTY'
   | 'INGREDIENT_NOT_IN_MEAL'
   | 'INVALID_WEIGHT'
   | 'INVALID_CUBE_COUNT'

@@ -1,6 +1,7 @@
 import { AlertSettingsService } from '../../../src/application/alert-settings.service.js';
 import { ForecastService } from '../../../src/application/forecast.service.js';
 import { IngredientService } from '../../../src/application/ingredient.service.js';
+import { MealPlanImportService } from '../../../src/application/meal-plan-import.service.js';
 import { MealPlanService } from '../../../src/application/meal-plan.service.js';
 import { MealSlotService } from '../../../src/application/meal-slot.service.js';
 import { MenuService } from '../../../src/application/menu.service.js';
@@ -49,6 +50,7 @@ export interface TestServices {
   readonly reconcile: ReconcileService;
   readonly noFeed: NoFeedService;
   readonly mealPlan: MealPlanService;
+  readonly mealPlanImport: MealPlanImportService;
   readonly ingredient: IngredientService;
   readonly menu: MenuService;
   readonly mealSlot: MealSlotService;
@@ -75,6 +77,7 @@ export function buildServices(now: LocalDateTime, lookbackDays = 90): TestServic
     reconcile: new ReconcileService(writer),
     noFeed: new NoFeedService(writer),
     mealPlan: new MealPlanService(writer, writer, history),
+    mealPlanImport: new MealPlanImportService(writer, writer, history),
     ingredient: new IngredientService(writer),
     menu: new MenuService(writer, writer),
     mealSlot: new MealSlotService(writer, writer),

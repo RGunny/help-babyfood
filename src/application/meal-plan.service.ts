@@ -1,25 +1,21 @@
 import { DomainError } from '../domain/errors.js';
 import { CalendarDay, projectCalendar } from '../domain/meal-plan/calendar-projection.js';
 import { Meal } from '../domain/meal-plan/meal.js';
-import { MealComposition } from '../domain/menu/menu.js';
 import { RuleWarning, validateMealPlan } from '../domain/rules/meal-rules.js';
 import { LocalDate } from '../domain/shared/local-date.js';
 import { MealSlot } from '../domain/shared/meal-slot.js';
+import { CompositionInput, resolveComposition } from './composition.js';
 import {
   fedIngredientIdsBefore,
   introductionStatuses,
   reactedIngredientIds,
 } from './feeding-history.js';
-import { HouseholdState, mealAt } from './household-state.js';
+import { mealAt } from './household-state.js';
 import { reconcile, ReconcileReport } from './reconcile.service.js';
 import { FeedingHistoryPort } from './ports/feeding-history.port.js';
 import { Actor, HouseholdReader, HouseholdWriter } from './ports/household-write.port.js';
 
-/** What a parent says a meal is made of, in the names they use. */
-export interface CompositionInput {
-  readonly baseMenuName: string | null;
-  readonly toppingIngredientNames: readonly string[];
-}
+export type { CompositionInput };
 
 export interface UpdatePlannedMealCommand {
   readonly householdId: string;
@@ -99,7 +95,7 @@ export class MealPlanService {
             await context.upsertMeal({
               slot: command.slot,
               order: firstOrder + index,
-              planned: resolve(state, draft.composition),
+              planned: resolveComposition(state, draft.composition),
               actual: null,
               memo: draft.memo ?? null,
               status: 'planned',
@@ -127,7 +123,7 @@ export class MealPlanService {
         const meal = mealAt(state, command.slot, command.date);
         await context.upsertMeal({
           ...meal,
-          planned: resolve(state, command.composition),
+          planned: resolveComposition(state, command.composition),
           memo: command.memo === undefined ? meal.memo : command.memo,
         });
         // 바뀐 내용으로 기존 소비를 취소하고 다시 차감한다. 둘은 같은 트랜잭션이어야 한다.
@@ -154,7 +150,7 @@ export class MealPlanService {
         const meal = mealAt(state, command.slot, command.date);
         await context.upsertMeal({
           ...meal,
-          actual: command.composition === null ? null : resolve(state, command.composition),
+          actual: command.composition === null ? null : resolveComposition(state, command.composition),
         });
         return await reconcile(context);
       },
@@ -192,23 +188,3 @@ export class MealPlanService {
   }
 }
 
-/** Names come from the parent; unknown ones cannot be deducted, so they are rejected here. */
-function resolve(state: HouseholdState, input: CompositionInput): MealComposition {
-  const baseMenuId =
-    input.baseMenuName === null
-      ? null
-      : ([...state.menus.values()].find((menu) => menu.name === input.baseMenuName)?.id ??
-        raise('UNKNOWN_MENU', `등록되지 않은 메뉴입니다: ${input.baseMenuName}`));
-
-  return {
-    baseMenuId,
-    toppingIngredientIds: input.toppingIngredientNames.map(
-      (name) =>
-        state.catalog.findByName(name)?.id ?? raise('UNKNOWN_INGREDIENT', `등록되지 않은 재료입니다: ${name}`),
-    ),
-  };
-}
-
-function raise(code: 'UNKNOWN_MENU' | 'UNKNOWN_INGREDIENT', message: string): never {
-  throw new DomainError(code, message);
-}

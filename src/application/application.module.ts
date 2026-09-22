@@ -3,6 +3,7 @@ import { PersistenceModule } from '../infrastructure/prisma/persistence.module.j
 import { AlertSettingsService } from './alert-settings.service.js';
 import { ForecastService } from './forecast.service.js';
 import { IngredientService } from './ingredient.service.js';
+import { MealPlanImportService } from './meal-plan-import.service.js';
 import { MealPlanService } from './meal-plan.service.js';
 import { MealSlotService } from './meal-slot.service.js';
 import { MenuService } from './menu.service.js';
@@ -39,6 +40,12 @@ const providers: Provider[] = [
     provide: MealPlanService,
     useFactory: (writer: HouseholdWriter, reader: HouseholdReader, history: FeedingHistoryPort) =>
       new MealPlanService(writer, reader, history),
+    inject: [HOUSEHOLD_WRITER, HOUSEHOLD_READER, FEEDING_HISTORY],
+  },
+  {
+    provide: MealPlanImportService,
+    useFactory: (writer: HouseholdWriter, reader: HouseholdReader, history: FeedingHistoryPort) =>
+      new MealPlanImportService(writer, reader, history),
     inject: [HOUSEHOLD_WRITER, HOUSEHOLD_READER, FEEDING_HISTORY],
   },
   {
@@ -89,6 +96,7 @@ const providers: Provider[] = [
     ReconcileService,
     NoFeedService,
     MealPlanService,
+    MealPlanImportService,
     IngredientService,
     MenuService,
     MealSlotService,
