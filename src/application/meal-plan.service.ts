@@ -2,10 +2,17 @@ import { DomainError } from '../domain/errors.js';
 import { CalendarDay, projectCalendar } from '../domain/meal-plan/calendar-projection.js';
 import { Meal } from '../domain/meal-plan/meal.js';
 import { MealComposition } from '../domain/menu/menu.js';
+import { RuleWarning, validateMealPlan } from '../domain/rules/meal-rules.js';
 import { LocalDate } from '../domain/shared/local-date.js';
 import { MealSlot } from '../domain/shared/meal-slot.js';
-import { HouseholdState } from './household-state.js';
+import {
+  fedIngredientIdsBefore,
+  introductionStatuses,
+  reactedIngredientIds,
+} from './feeding-history.js';
+import { HouseholdState, mealAt } from './household-state.js';
 import { reconcile, ReconcileReport } from './reconcile.service.js';
+import { FeedingHistoryPort } from './ports/feeding-history.port.js';
 import { Actor, HouseholdReader, HouseholdWriter } from './ports/household-write.port.js';
 
 /** What a parent says a meal is made of, in the names they use. */
@@ -34,11 +41,78 @@ export interface UpdateMealActualCommand {
   readonly composition: CompositionInput | null;
 }
 
+/** One meal to append, in the order the parent listed it. */
+export interface MealDraftInput {
+  readonly composition: CompositionInput;
+  readonly memo?: string | null;
+}
+
+export interface AppendMealsCommand {
+  readonly householdId: string;
+  readonly actor: Actor;
+  readonly idempotencyKey?: string;
+  readonly slot: MealSlot;
+  readonly meals: readonly MealDraftInput[];
+}
+
+/** The calendar a parent reads, together with what the server wants them to look at. */
+export interface MealPlanView {
+  readonly days: readonly CalendarDay[];
+  readonly warnings: readonly RuleWarning[];
+}
+
 export class MealPlanService {
   constructor(
     private readonly writer: HouseholdWriter,
     private readonly reader: HouseholdReader,
+    private readonly history: FeedingHistoryPort,
   ) {}
+
+  /**
+   * Adds meals to the end of a slot. Only appending is possible: a meal's date comes from counting
+   * dates from the slot start, so an order inserted in the middle would re-date every meal after it.
+   * Changing a date that already has a meal is what `update_planned_meal` is for.
+   *
+   * No reconciliation runs here, unlike the two updates below. Appending cannot invalidate a
+   * deduction that already happened: existing meals keep their order, so they keep their date. A new
+   * meal whose meal time has already passed is deducted by the next reconciliation, which is the
+   * same path that covers the server having been down.
+   */
+  async appendMeals(command: AppendMealsCommand): Promise<Meal[]> {
+    return await this.writer.write(
+      {
+        householdId: command.householdId,
+        actor: command.actor,
+        operation: 'append_meals',
+        idempotencyKey: command.idempotencyKey,
+        payload: { slot: command.slot, meals: command.meals },
+      },
+      async (context) => {
+        const state = await context.load();
+        if (!state.calendar.hasSlot(command.slot)) {
+          throw new DomainError('SLOT_NOT_SCHEDULED', `설정되지 않은 끼니입니다: ${command.slot}`);
+        }
+        // 다음 순서는 저장소가 센다. 적재된 식단의 최댓값을 쓰면 급여가 오래 끊겨 모든 식단이
+        // 윈도 밖에 있을 때 순서 1로 되돌아가 유니크 제약에 걸린다.
+        const firstOrder = await context.nextMealOrder(command.slot);
+        const meals: Meal[] = [];
+        for (const [index, draft] of command.meals.entries()) {
+          meals.push(
+            await context.upsertMeal({
+              slot: command.slot,
+              order: firstOrder + index,
+              planned: resolve(state, draft.composition),
+              actual: null,
+              memo: draft.memo ?? null,
+              status: 'planned',
+              migrated: false,
+            }),
+          );
+        }
+        return meals;
+      },
+    );
+  }
 
   /** Changes what a meal is supposed to be. Stock follows in the same transaction. */
   async updatePlannedMeal(command: UpdatePlannedMealCommand): Promise<ReconcileReport> {
@@ -52,7 +126,7 @@ export class MealPlanService {
       },
       async (context) => {
         const state = await context.load({ sinceDate: command.date });
-        const meal = mealOn(state, command.slot, command.date);
+        const meal = mealAt(state, command.slot, command.date);
         await context.upsertMeal({
           ...meal,
           planned: resolve(state, command.composition),
@@ -79,7 +153,7 @@ export class MealPlanService {
       },
       async (context) => {
         const state = await context.load({ sinceDate: command.date });
-        const meal = mealOn(state, command.slot, command.date);
+        const meal = mealAt(state, command.slot, command.date);
         await context.upsertMeal({
           ...meal,
           actual: command.composition === null ? null : resolve(state, command.composition),
@@ -89,26 +163,35 @@ export class MealPlanService {
     );
   }
 
-  /** What parents see: each date with its day number and the meal of every slot. */
-  async getMealPlan(householdId: string, from: LocalDate, to: LocalDate): Promise<CalendarDay[]> {
+  /**
+   * What parents see: each date with its day number and the meal of every slot, plus the rule
+   * violations of the planned meals in that range.
+   *
+   * The warnings have to be recomputed on every read. When only one slot is postponed, meals that
+   * were never on the same date end up together, and a pairing or a second first-introduction
+   * appears without anyone editing the plan.
+   */
+  async getMealPlan(householdId: string, from: LocalDate, to: LocalDate): Promise<MealPlanView> {
+    const history = await this.history.load(householdId);
     return await this.reader.read(
       householdId,
-      (state) => projectCalendar(state.meals, state.calendar, from, to),
+      (state) => {
+        const days = projectCalendar(state.meals, state.calendar, from, to);
+        const statuses = introductionStatuses(history, state.ingredients, state.menus);
+        return {
+          days,
+          warnings: validateMealPlan({
+            days,
+            menus: state.menus,
+            rules: state.rules,
+            alreadyFedIngredientIds: fedIngredientIdsBefore(history, state.calendar, state.menus, from),
+            reactedIngredientIds: reactedIngredientIds(statuses),
+          }),
+        };
+      },
       { sinceDate: from },
     );
   }
-}
-
-function mealOn(state: HouseholdState, slot: MealSlot, date: LocalDate): Meal {
-  if (!state.calendar.hasSlot(slot)) {
-    throw new DomainError('SLOT_NOT_SCHEDULED', `설정되지 않은 끼니입니다: ${slot}`);
-  }
-  const order = state.calendar.orderAt(slot, date);
-  const meal = order === null ? undefined : state.meals.find((candidate) => candidate.slot === slot && candidate.order === order);
-  if (meal === undefined) {
-    throw new DomainError('SLOT_NOT_SCHEDULED', `그 날짜와 끼니에 식단이 없습니다: ${date} ${slot}`);
-  }
-  return meal;
 }
 
 /** Names come from the parent; unknown ones cannot be deducted, so they are rejected here. */

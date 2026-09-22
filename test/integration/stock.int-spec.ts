@@ -13,7 +13,7 @@ afterAll(async () => {
   await services.prisma.$disconnect();
 });
 
-const household = () => seedHousehold(services.prisma, { mealCount: 3 });
+const household = () => seedHousehold(services, { mealCount: 3 });
 
 const receive = async (
   house: Awaited<ReturnType<typeof household>>,

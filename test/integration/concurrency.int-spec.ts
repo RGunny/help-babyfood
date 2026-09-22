@@ -44,7 +44,7 @@ const consumedCount = async (house: Household, ingredientName: string): Promise<
 
 describe('동시 차감', () => {
   it('마지막 큐브 1개를 두 정합화가 동시에 노려도 한 번만 차감된다', async () => {
-    const house = await seedHousehold(services.prisma, { mealCount: 1 });
+    const house = await seedHousehold(services, { mealCount: 1 });
     await stockAll(house, 1);
     services.clock.set('2026-08-17', '10:00');
 
@@ -55,7 +55,7 @@ describe('동시 차감', () => {
   });
 
   it('다섯 개가 동시에 들어와도 차감은 한 번이다', async () => {
-    const house = await seedHousehold(services.prisma, { mealCount: 1 });
+    const house = await seedHousehold(services, { mealCount: 1 });
     await stockAll(house, 1);
     services.clock.set('2026-08-17', '10:00');
 
@@ -66,7 +66,7 @@ describe('동시 차감', () => {
   });
 
   it('재고 2개에 식단 3개가 동시에 정합화돼도 음수가 되지 않고 하나는 보류다', async () => {
-    const house = await seedHousehold(services.prisma, { mealCount: 3 });
+    const house = await seedHousehold(services, { mealCount: 3 });
     await stockAll(house, 10);
     const broccoli = await services.prisma.cookedBatch.findFirstOrThrow({
       where: { householdId: house.id, ingredientId: house.ingredientId('브로콜리') },
@@ -93,7 +93,7 @@ describe('동시 차감', () => {
   });
 
   it('정합화와 폐기가 동시에 들어와도 잔여 수량이 음수가 되지 않는다', async () => {
-    const house = await seedHousehold(services.prisma, { mealCount: 1 });
+    const house = await seedHousehold(services, { mealCount: 1 });
     await stockAll(house, 1);
     const broccoli = await services.prisma.cookedBatch.findFirstOrThrow({
       where: { householdId: house.id, ingredientId: house.ingredientId('브로콜리') },
@@ -121,7 +121,7 @@ describe('동시 차감', () => {
   });
 
   it('같은 멱등키의 입고가 동시에 들어와도 배치는 하나다', async () => {
-    const house = await seedHousehold(services.prisma, { mealCount: 1 });
+    const house = await seedHousehold(services, { mealCount: 1 });
     const command = {
       householdId: house.id,
       actor: house.actor,
@@ -143,8 +143,8 @@ describe('동시 차감', () => {
   });
 
   it('가정이 다르면 서로 막지 않는다', async () => {
-    const one = await seedHousehold(services.prisma, { mealCount: 1 });
-    const two = await seedHousehold(services.prisma, { mealCount: 1 });
+    const one = await seedHousehold(services, { mealCount: 1 });
+    const two = await seedHousehold(services, { mealCount: 1 });
     await stockAll(one, 1);
     await stockAll(two, 1);
     services.clock.set('2026-08-17', '10:00');

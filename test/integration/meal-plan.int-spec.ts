@@ -50,7 +50,7 @@ async function expectProjectionMatchesLedger(house: Household): Promise<void> {
 }
 
 const settled = async () => {
-  const house = await seedHousehold(services.prisma, { mealCount: 3 });
+  const house = await seedHousehold(services, { mealCount: 3 });
   await stockAll(house, 10);
   services.clock.set('2026-08-17', '12:00');
   await services.reconcile.run(house.id);
@@ -142,7 +142,7 @@ describe('실제 급여 내용 변경', () => {
       composition: { baseMenuName: null, toppingIngredientNames: ['애호박', '애호박'] },
     });
 
-    const days = await services.mealPlan.getMealPlan(
+    const { days } = await services.mealPlan.getMealPlan(
       house.id,
       localDate('2026-08-17'),
       localDate('2026-08-17'),
@@ -229,7 +229,7 @@ describe('계획 수정', () => {
       memo: '(+10g)',
     });
 
-    const days = await services.mealPlan.getMealPlan(
+    const { days } = await services.mealPlan.getMealPlan(
       house.id,
       localDate('2026-08-18'),
       localDate('2026-08-18'),
@@ -249,7 +249,7 @@ describe('계획 수정', () => {
     await services.mealPlan.updatePlannedMeal({ ...command, memo: '(+10g)' });
     await services.mealPlan.updatePlannedMeal(command);
 
-    const days = await services.mealPlan.getMealPlan(
+    const { days } = await services.mealPlan.getMealPlan(
       house.id,
       localDate('2026-08-18'),
       localDate('2026-08-18'),
@@ -261,7 +261,7 @@ describe('계획 수정', () => {
 describe('달력 조회', () => {
   it('날짜마다 일차와 끼니별 식단을 돌려준다', async () => {
     const house = await settled();
-    const days = await services.mealPlan.getMealPlan(
+    const { days } = await services.mealPlan.getMealPlan(
       house.id,
       localDate('2026-08-17'),
       localDate('2026-08-19'),
@@ -282,7 +282,7 @@ describe('달력 조회', () => {
       reason: '감기',
     });
 
-    const days = await services.mealPlan.getMealPlan(
+    const { days } = await services.mealPlan.getMealPlan(
       house.id,
       localDate('2026-08-17'),
       localDate('2026-08-19'),
@@ -295,7 +295,7 @@ describe('달력 조회', () => {
 
   it('식단표가 끝난 뒤의 날짜는 식단이 비어 있다', async () => {
     const house = await settled();
-    const days = await services.mealPlan.getMealPlan(
+    const { days } = await services.mealPlan.getMealPlan(
       house.id,
       localDate('2026-08-20'),
       localDate('2026-08-20'),

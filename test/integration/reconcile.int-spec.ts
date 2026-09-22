@@ -55,7 +55,7 @@ async function expectProjectionMatchesLedger(house: Household): Promise<void> {
 
 describe('자동 차감', () => {
   it('식단시간 전에는 아무것도 바뀌지 않는다', async () => {
-    const house = await seedHousehold(services.prisma, { mealCount: 6 });
+    const house = await seedHousehold(services, { mealCount: 6 });
     await stockAll(house, 10);
     services.clock.set('2026-08-17', '09:59');
 
@@ -67,7 +67,7 @@ describe('자동 차감', () => {
   });
 
   it('식단시간이 지나면 급여 완료로 바꾸고 메뉴와 토핑의 큐브를 1개씩 차감한다', async () => {
-    const house = await seedHousehold(services.prisma, { mealCount: 6 });
+    const house = await seedHousehold(services, { mealCount: 6 });
     await stockAll(house, 10);
     services.clock.set('2026-08-17', '10:00');
 
@@ -84,7 +84,7 @@ describe('자동 차감', () => {
   });
 
   it('같은 시각에 다시 돌려도 바뀌는 것이 없다', async () => {
-    const house = await seedHousehold(services.prisma, { mealCount: 6 });
+    const house = await seedHousehold(services, { mealCount: 6 });
     await stockAll(house, 10);
     services.clock.set('2026-08-17', '10:00');
 
@@ -97,7 +97,7 @@ describe('자동 차감', () => {
   });
 
   it('서버가 멈춰 있던 동안의 식단은 재기동 후 첫 정합화에서 소급해 차감한다', async () => {
-    const house = await seedHousehold(services.prisma, { mealCount: 6 });
+    const house = await seedHousehold(services, { mealCount: 6 });
     await stockAll(house, 10);
     services.clock.set('2026-08-20', '10:00');
 
@@ -109,7 +109,7 @@ describe('자동 차감', () => {
   });
 
   it('먼저 먹인 식단이 더 오래된 배치의 큐브를 가져간다', async () => {
-    const house = await seedHousehold(services.prisma, { mealCount: 6 });
+    const house = await seedHousehold(services, { mealCount: 6 });
     await stockAll(house, 1, '2026-08-14');
     await stockAll(house, 5, '2026-08-15');
     services.clock.set('2026-08-18', '10:00');
@@ -124,7 +124,7 @@ describe('자동 차감', () => {
   });
 
   it('조리일이 식단 날짜보다 늦은 배치에서는 차감하지 않고 보류한다', async () => {
-    const house = await seedHousehold(services.prisma, { mealCount: 1 });
+    const house = await seedHousehold(services, { mealCount: 1 });
     await stockAll(house, 10, '2026-08-18');
     services.clock.set('2026-08-17', '10:00');
 
@@ -139,7 +139,7 @@ describe('자동 차감', () => {
 
 describe('재고 부족과 보류', () => {
   it('모자란 재료만 보류하고 나머지는 차감하며 식단은 급여 완료가 된다', async () => {
-    const house = await seedHousehold(services.prisma, { mealCount: 1 });
+    const house = await seedHousehold(services, { mealCount: 1 });
     await stockAll(house, 10);
     // 브로콜리만 비운다.
     const broccoli = await services.prisma.cookedBatch.findFirstOrThrow({
@@ -162,7 +162,7 @@ describe('재고 부족과 보류', () => {
   });
 
   it('입고를 늦게 등록하면 보류된 차감이 다음 정합화에서 처리된다', async () => {
-    const house = await seedHousehold(services.prisma, { mealCount: 1 });
+    const house = await seedHousehold(services, { mealCount: 1 });
     await stockAll(house, 10);
     const broccoli = await services.prisma.cookedBatch.findFirstOrThrow({
       where: { householdId: house.id, ingredientId: house.ingredientId('브로콜리') },
@@ -192,7 +192,7 @@ describe('재고 부족과 보류', () => {
   });
 
   it('재고는 음수로 내려가지 않는다: 2개뿐이면 두 식단만 차감하고 나머지는 보류한다', async () => {
-    const house = await seedHousehold(services.prisma, { mealCount: 4 });
+    const house = await seedHousehold(services, { mealCount: 4 });
     await stockAll(house, 10);
     const broccoli = await services.prisma.cookedBatch.findFirstOrThrow({
       where: { householdId: house.id, ingredientId: house.ingredientId('브로콜리') },
@@ -216,7 +216,7 @@ describe('재고 부족과 보류', () => {
 
 describe('미급여 등록', () => {
   it('식단시간 전에 등록하면 차감 없이 식단만 다음 날로 밀린다', async () => {
-    const house = await seedHousehold(services.prisma, { mealCount: 6 });
+    const house = await seedHousehold(services, { mealCount: 6 });
     await stockAll(house, 10);
     services.clock.set('2026-08-17', '09:00');
 
@@ -240,7 +240,7 @@ describe('미급여 등록', () => {
   });
 
   it('식단시간 후 해동 전에 등록하면 소비를 취소하고 식단은 예정으로 돌아간다', async () => {
-    const house = await seedHousehold(services.prisma, { mealCount: 6 });
+    const house = await seedHousehold(services, { mealCount: 6 });
     await stockAll(house, 10);
     services.clock.set('2026-08-17', '10:00');
     await services.reconcile.run(house.id);
@@ -262,7 +262,7 @@ describe('미급여 등록', () => {
   });
 
   it('식단시간 후 해동 후에 등록하면 소비를 취소하고 같은 수량을 폐기로 기록한다', async () => {
-    const house = await seedHousehold(services.prisma, { mealCount: 6 });
+    const house = await seedHousehold(services, { mealCount: 6 });
     await stockAll(house, 10);
     services.clock.set('2026-08-17', '10:00');
     await services.reconcile.run(house.id);
@@ -288,7 +288,7 @@ describe('미급여 등록', () => {
   });
 
   it('미뤄진 식단을 실제로 먹이는 날에는 큐브가 다시 차감된다', async () => {
-    const house = await seedHousehold(services.prisma, { mealCount: 6 });
+    const house = await seedHousehold(services, { mealCount: 6 });
     await stockAll(house, 10);
     services.clock.set('2026-08-17', '12:00');
     await services.reconcile.run(house.id);
@@ -311,7 +311,7 @@ describe('미급여 등록', () => {
   });
 
   it('며칠 뒤 소급해 등록하면 마지막에 차감됐던 식단만 예정으로 돌아간다', async () => {
-    const house = await seedHousehold(services.prisma, { mealCount: 6 });
+    const house = await seedHousehold(services, { mealCount: 6 });
     await stockAll(house, 10);
     services.clock.set('2026-08-20', '12:00');
     await services.reconcile.run(house.id);
@@ -333,7 +333,7 @@ describe('미급여 등록', () => {
   });
 
   it('같은 날짜와 끼니를 두 번 등록할 수 없다', async () => {
-    const house = await seedHousehold(services.prisma, { mealCount: 6 });
+    const house = await seedHousehold(services, { mealCount: 6 });
     await stockAll(house, 10);
     const command = {
       householdId: house.id,
@@ -348,7 +348,7 @@ describe('미급여 등록', () => {
   });
 
   it('같은 멱등키로 다시 부르면 미급여는 한 건이고 원장 변화도 한 번분이다', async () => {
-    const house = await seedHousehold(services.prisma, { mealCount: 6 });
+    const house = await seedHousehold(services, { mealCount: 6 });
     await stockAll(house, 10);
     services.clock.set('2026-08-17', '12:00');
     await services.reconcile.run(house.id);
@@ -373,7 +373,7 @@ describe('미급여 등록', () => {
 
 describe('미급여 취소', () => {
   it('잘못 등록한 미급여를 지우면 날짜가 당겨지고 식단시간이 지난 식단이 다시 차감된다', async () => {
-    const house = await seedHousehold(services.prisma, { mealCount: 6 });
+    const house = await seedHousehold(services, { mealCount: 6 });
     await stockAll(house, 10);
     services.clock.set('2026-08-17', '12:00');
     await services.noFeed.register({
@@ -399,7 +399,7 @@ describe('미급여 취소', () => {
   });
 
   it('해동 후로 등록했던 미급여를 지우면 폐기했던 큐브도 되돌린다', async () => {
-    const house = await seedHousehold(services.prisma, { mealCount: 6 });
+    const house = await seedHousehold(services, { mealCount: 6 });
     await stockAll(house, 10);
     services.clock.set('2026-08-17', '12:00');
     await services.reconcile.run(house.id);
@@ -427,7 +427,7 @@ describe('미급여 취소', () => {
   });
 
   it('없는 미급여 기록은 지울 수 없다', async () => {
-    const house = await seedHousehold(services.prisma, { mealCount: 6 });
+    const house = await seedHousehold(services, { mealCount: 6 });
     await expect(
       services.noFeed.cancel({
         householdId: house.id,
@@ -441,7 +441,7 @@ describe('미급여 취소', () => {
 
 describe('수행자 기록', () => {
   it('스케줄러가 돌린 정합화는 구성원 없이 남는다', async () => {
-    const house = await seedHousehold(services.prisma, { mealCount: 1 });
+    const house = await seedHousehold(services, { mealCount: 1 });
     await stockAll(house, 10);
     services.clock.set('2026-08-17', '10:00');
     await services.reconcile.run(house.id);
@@ -454,7 +454,7 @@ describe('수행자 기록', () => {
   });
 
   it('모든 원장 이벤트에 수행자가 있다', async () => {
-    const house = await seedHousehold(services.prisma, { mealCount: 1 });
+    const house = await seedHousehold(services, { mealCount: 1 });
     await stockAll(house, 10);
     services.clock.set('2026-08-17', '10:00');
     await services.reconcile.run(house.id, house.actor);

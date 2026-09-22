@@ -62,8 +62,8 @@ const longHistory = { mealCount: 48, slotStartDate: '2026-07-01' };
 
 describe('좁은 윈도와 전체 적재', () => {
   it('오래된 이력을 한꺼번에 정합화해도 같은 결과에 도달한다', async () => {
-    const one = await seedHousehold(narrow.prisma, longHistory);
-    const two = await seedHousehold(wide.prisma, longHistory);
+    const one = await seedHousehold(narrow, longHistory);
+    const two = await seedHousehold(wide, longHistory);
     await stockAll(narrow, one, 60, '2026-06-30');
     await stockAll(wide, two, 60, '2026-06-30');
 
@@ -74,7 +74,7 @@ describe('좁은 윈도와 전체 적재', () => {
   });
 
   it('윈도보다 오래 멈춰 있던 뒤에도 예정 식단이 빠짐없이 차감된다', async () => {
-    const house = await seedHousehold(narrow.prisma, longHistory);
+    const house = await seedHousehold(narrow, longHistory);
     await stockAll(narrow, house, 60, '2026-06-30');
 
     // 7/1 시작, 8/17까지 48일. 식단은 40개뿐이라 전부 식단시간이 지났다.
@@ -89,8 +89,8 @@ describe('좁은 윈도와 전체 적재', () => {
   });
 
   it('윈도보다 과거를 지목한 소급 미급여도 같은 결과를 낸다', async () => {
-    const one = await seedHousehold(narrow.prisma, longHistory);
-    const two = await seedHousehold(wide.prisma, longHistory);
+    const one = await seedHousehold(narrow, longHistory);
+    const two = await seedHousehold(wide, longHistory);
     await stockAll(narrow, one, 60, '2026-06-30');
     await stockAll(wide, two, 60, '2026-06-30');
     await narrow.reconcile.run(one.id);
@@ -118,7 +118,7 @@ describe('좁은 윈도와 전체 적재', () => {
   });
 
   it('윈도 밖 소급 미급여가 해동 후였다면 그 날짜 식단의 큐브를 폐기한다', async () => {
-    const house = await seedHousehold(narrow.prisma, longHistory);
+    const house = await seedHousehold(narrow, longHistory);
     await stockAll(narrow, house, 60, '2026-06-30');
     await narrow.reconcile.run(house.id);
 
@@ -141,7 +141,7 @@ describe('좁은 윈도와 전체 적재', () => {
   });
 
   it('윈도 밖 소급 미급여를 취소하면 다시 원래대로 돌아온다', async () => {
-    const house = await seedHousehold(narrow.prisma, longHistory);
+    const house = await seedHousehold(narrow, longHistory);
     await stockAll(narrow, house, 60, '2026-06-30');
     await narrow.reconcile.run(house.id);
     const before = await snapshot(narrow, house);
@@ -167,7 +167,7 @@ describe('좁은 윈도와 전체 적재', () => {
 
 describe('닫힌 배치를 지목하는 요청', () => {
   it('해동 폐기로 비워진 배치도 미급여를 취소하면 되돌아온다', async () => {
-    const house = await seedHousehold(narrow.prisma, { mealCount: 3 });
+    const house = await seedHousehold(narrow, { mealCount: 3 });
     // 브로콜리만 딱 1개. 식단을 먹이면 0이 되어 기본 적재 범위에서 빠진다.
     for (const [name, weight] of Object.entries(SERVING_WEIGHT)) {
       await narrow.stock.registerCookedBatch({
