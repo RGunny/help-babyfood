@@ -162,4 +162,21 @@ describe('스케줄러 배선', () => {
       await moduleRef.close();
     }
   });
+
+  it('등록된 잡을 발화시키면 실제로 차감이 일어난다', async () => {
+    // 여기서만 진짜 시계를 쓴다. 등록된 콜백이 우리 tick이고 그것이 DB까지 닿는지가 이 테스트다.
+    // 픽스처의 식단 날짜(2026-08-17부터)는 이 저장소의 다른 테스트와 같고, 지금은 이미 지났다.
+    const house = await seedHousehold(services, { mealCount: 2 });
+    await stockAll(house, 10);
+    const moduleRef = await bootApp(true);
+
+    try {
+      await moduleRef.get(SchedulerRegistry).getCronJob(RECONCILE_JOB).fireOnTick();
+
+      expect(await statusOf(house.mealIds[0])).toBe('consumed');
+      expect(await remainingOf(house, '소고기')).toBe(8);
+    } finally {
+      await moduleRef.close();
+    }
+  });
 });
