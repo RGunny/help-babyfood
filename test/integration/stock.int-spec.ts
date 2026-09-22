@@ -1,6 +1,6 @@
 import { DomainError } from '../../src/domain/errors.js';
 import { localDate } from '../../src/domain/shared/local-date.js';
-import { ApplicationError } from '../../src/infrastructure/prisma/household-writer.js';
+import { ApplicationError } from '../../src/application/errors.js';
 import { TestServices, at, buildServices, seedHousehold } from './setup/fixtures.js';
 
 let services: TestServices;

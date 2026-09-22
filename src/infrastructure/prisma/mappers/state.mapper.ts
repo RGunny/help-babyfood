@@ -1,9 +1,11 @@
+import { AlertSettings } from '../../../application/household-state.js';
 import { Ingredient } from '../../../domain/ingredient/ingredient.js';
 import { Meal } from '../../../domain/meal-plan/meal.js';
 import { NoFeedRecord, SlotSchedule } from '../../../domain/meal-plan/meal-calendar.js';
 import { MealComposition, Menu } from '../../../domain/menu/menu.js';
 import { ForbiddenPairing, MealPlanningRules } from '../../../domain/rules/meal-rules.js';
 import { localTime } from '../../../domain/shared/local-time.js';
+import { DEFAULT_SHELF_LIFE_DAYS } from '../../../domain/stock/expiry.js';
 import { CookedBatch, LedgerEntry } from '../../../domain/stock/ledger.js';
 import { toLocalDate } from './local-date.mapper.js';
 
@@ -164,6 +166,30 @@ export const DEFAULT_PLANNING_RULES: MealPlanningRules = {
   maxFirstIntroductionsPerDay: null,
   firstIntroductionSlot: null,
 };
+
+/** Used until parents set their own. 07:30 is the example the plan works from. */
+export const DEFAULT_BRIEF_TIME = '07:30';
+
+export interface AlertSettingsRow {
+  briefTime: string;
+  shelfLifeDays: number;
+}
+
+export function toAlertSettings(row: AlertSettingsRow | null): AlertSettings {
+  return {
+    briefTime: localTime(row?.briefTime ?? DEFAULT_BRIEF_TIME),
+    shelfLifeDays: row?.shelfLifeDays ?? DEFAULT_SHELF_LIFE_DAYS,
+  };
+}
+
+export interface ThresholdRow {
+  ingredientId: string;
+  thresholdCubes: number;
+}
+
+export function toThresholds(rows: readonly ThresholdRow[]): ReadonlyMap<string, number> {
+  return new Map(rows.map((row) => [row.ingredientId, row.thresholdCubes]));
+}
 
 export function toMealPlanningRules(row: RulesRow | null, pairings: PairingRow[]): MealPlanningRules {
   return {

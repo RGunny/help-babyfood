@@ -1,34 +1,32 @@
 import { createHash } from 'node:crypto';
-import { HouseholdState, LoadScope } from '../../application/household-state.js';
+import { ApplicationError } from '../../application/errors.js';
+import { AlertSettings, HouseholdState, LoadScope } from '../../application/household-state.js';
 import { ClockPort } from '../../application/ports/clock.port.js';
 import {
   Actor,
   CookedBatchDraft,
+  FeedingReactionDraft,
   HouseholdReader,
   HouseholdWriteContext,
   HouseholdWriter,
+  IngredientDraft,
   MealDraft,
+  MenuDraft,
   WriteRequest,
 } from '../../application/ports/household-write.port.js';
 import { MealStatusChange } from '../../domain/deduction/reconcile.js';
+import { Ingredient } from '../../domain/ingredient/ingredient.js';
+import { normalizeIngredientName } from '../../domain/ingredient/ingredient-catalog.js';
 import { Meal } from '../../domain/meal-plan/meal.js';
-import { NoFeedRecord } from '../../domain/meal-plan/meal-calendar.js';
+import { NoFeedRecord, SlotSchedule } from '../../domain/meal-plan/meal-calendar.js';
+import { Menu } from '../../domain/menu/menu.js';
+import { MealPlanningRules } from '../../domain/rules/meal-rules.js';
 import { LocalDate } from '../../domain/shared/local-date.js';
 import { MealSlot } from '../../domain/shared/meal-slot.js';
 import { CookedBatch, LedgerEntry } from '../../domain/stock/ledger.js';
 import { PrismaHouseholdStateRepository } from './household-state.repository.js';
 import { PrismaService, PrismaTransaction } from './prisma.service.js';
 import { fromLocalDate } from './mappers/local-date.mapper.js';
-
-export class ApplicationError extends Error {
-  constructor(
-    readonly code: 'IDEMPOTENCY_KEY_REUSED' | 'HOUSEHOLD_NOT_FOUND',
-    message: string,
-  ) {
-    super(message);
-    this.name = 'ApplicationError';
-  }
-}
 
 /** Long enough to cover a full aggregate read plus its writes, short enough to fail a stuck run. */
 const TRANSACTION_TIMEOUT_MS = 15_000;
@@ -187,6 +185,14 @@ class PrismaWriteContext implements HouseholdWriteContext {
     }
   }
 
+  async nextMealOrder(slot: MealSlot): Promise<number> {
+    const highest = await this.tx.meal.aggregate({
+      where: { householdId: this.householdId, slot },
+      _max: { mealOrder: true },
+    });
+    return (highest._max.mealOrder ?? 0) + 1;
+  }
+
   async applyMealStatuses(changes: readonly MealStatusChange[]): Promise<void> {
     for (const change of changes) {
       await this.tx.meal.update({
@@ -284,6 +290,161 @@ class PrismaWriteContext implements HouseholdWriteContext {
       });
     }
     return { ...meal, id: row.id };
+  }
+
+  async recordFeedingReaction(draft: FeedingReactionDraft): Promise<void> {
+    const memberId = memberIdOf(this.request.actor);
+    // 같은 식단·재료를 다시 기록하면 정정이다. UNIQUE(meal_id, ingredient_id)가 그것을 보장한다.
+    await this.tx.feedingReaction.upsert({
+      where: { mealId_ingredientId: { mealId: draft.mealId, ingredientId: draft.ingredientId } },
+      create: {
+        householdId: this.householdId,
+        mealId: draft.mealId,
+        ingredientId: draft.ingredientId,
+        result: draft.result,
+        symptomMemo: draft.symptomMemo,
+        createdByMemberId: memberId,
+      },
+      update: { result: draft.result, symptomMemo: draft.symptomMemo, createdByMemberId: memberId },
+    });
+  }
+
+  async insertIngredient(draft: IngredientDraft): Promise<Ingredient> {
+    const row = await this.tx.ingredient.create({
+      data: {
+        householdId: this.householdId,
+        name: draft.name,
+        category: draft.category,
+        servingWeightGram: draft.servingWeightGram,
+        verifiedBeforeMigration: draft.verifiedBeforeMigration,
+      },
+      select: { id: true },
+    });
+    // 대표 이름도 라벨 한 행이다. is_canonical = (position = 0)을 CHECK가 강제한다.
+    await this.tx.ingredientLabel.createMany({
+      data: [draft.name, ...draft.aliases].map((label, position) => ({
+        householdId: this.householdId,
+        ingredientId: row.id,
+        label,
+        normalizedLabel: normalizeIngredientName(label),
+        isCanonical: position === 0,
+        position,
+      })),
+    });
+    return {
+      id: row.id,
+      name: draft.name,
+      aliases: draft.aliases,
+      category: draft.category,
+      servingWeightGram: draft.servingWeightGram,
+    };
+  }
+
+  async addIngredientAlias(ingredientId: string, alias: string): Promise<void> {
+    // position은 저장된 라벨에서 센다. 도메인의 aliases 배열 길이로 세면 라벨을 지운 적이
+    // 있을 때 (ingredient_id, position) 유니크와 어긋난다.
+    const highest = await this.tx.ingredientLabel.aggregate({
+      where: { ingredientId },
+      _max: { position: true },
+    });
+    await this.tx.ingredientLabel.create({
+      data: {
+        householdId: this.householdId,
+        ingredientId,
+        label: alias,
+        normalizedLabel: normalizeIngredientName(alias),
+        isCanonical: false,
+        position: (highest._max.position ?? 0) + 1,
+      },
+    });
+  }
+
+  async updateServingWeight(ingredientId: string, servingWeightGram: number): Promise<void> {
+    await this.tx.ingredient.update({ where: { id: ingredientId }, data: { servingWeightGram } });
+  }
+
+  async insertMenu(draft: MenuDraft): Promise<Menu> {
+    const row = await this.tx.menu.create({
+      data: {
+        householdId: this.householdId,
+        name: draft.name,
+        components: {
+          create: draft.components.map((component) => ({
+            ingredientId: component.ingredientId,
+            cubes: component.cubes,
+          })),
+        },
+      },
+      select: { id: true },
+    });
+    return { ...draft, id: row.id };
+  }
+
+  async updateMenu(menu: Menu): Promise<Menu> {
+    await this.tx.menu.update({ where: { id: menu.id }, data: { name: menu.name } });
+    // 구성은 통째로 갈아 끼운다. 부분 갱신은 지워야 할 구성 큐브를 남길 여지가 있다.
+    await this.tx.menuComponent.deleteMany({ where: { menuId: menu.id } });
+    await this.tx.menuComponent.createMany({
+      data: menu.components.map((component) => ({
+        menuId: menu.id,
+        ingredientId: component.ingredientId,
+        cubes: component.cubes,
+      })),
+    });
+    return menu;
+  }
+
+  async insertSlotSchedule(schedule: SlotSchedule): Promise<void> {
+    await this.tx.slotSchedule.create({
+      data: {
+        householdId: this.householdId,
+        slot: schedule.slot,
+        startDate: fromLocalDate(schedule.startDate),
+        mealTime: schedule.mealTime,
+      },
+    });
+  }
+
+  async saveRules(rules: MealPlanningRules, textGuidance: string | null): Promise<void> {
+    const fields = {
+      textGuidance,
+      maxFirstIntroductionsPerDay: rules.maxFirstIntroductionsPerDay,
+      firstIntroductionSlot: rules.firstIntroductionSlot,
+    };
+    await this.tx.mealPlanningRules.upsert({
+      where: { householdId: this.householdId },
+      create: { householdId: this.householdId, ...fields },
+      update: fields,
+    });
+    await this.tx.forbiddenPairing.deleteMany({ where: { householdId: this.householdId } });
+    await this.tx.forbiddenPairing.createMany({
+      data: rules.forbiddenPairings.map((pairing) => ({
+        householdId: this.householdId,
+        ingredientAId: pairing.ingredientIds[0],
+        ingredientBId: pairing.ingredientIds[1],
+        scope: pairing.scope,
+      })),
+    });
+  }
+
+  async saveAlertSettings(settings: AlertSettings): Promise<void> {
+    const fields = { briefTime: settings.briefTime, shelfLifeDays: settings.shelfLifeDays };
+    await this.tx.alertSettings.upsert({
+      where: { householdId: this.householdId },
+      create: { householdId: this.householdId, ...fields },
+      update: fields,
+    });
+  }
+
+  async saveThresholds(thresholds: ReadonlyMap<string, number>): Promise<void> {
+    await this.tx.ingredientThreshold.deleteMany({ where: { householdId: this.householdId } });
+    await this.tx.ingredientThreshold.createMany({
+      data: [...thresholds].map(([ingredientId, thresholdCubes]) => ({
+        householdId: this.householdId,
+        ingredientId,
+        thresholdCubes,
+      })),
+    });
   }
 }
 

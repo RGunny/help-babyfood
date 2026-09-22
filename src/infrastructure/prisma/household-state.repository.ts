@@ -3,8 +3,8 @@ import { IngredientCatalog } from '../../domain/ingredient/ingredient-catalog.js
 import { MealCalendar, SlotSchedule } from '../../domain/meal-plan/meal-calendar.js';
 import { Menu } from '../../domain/menu/menu.js';
 import { LocalDate, addDays } from '../../domain/shared/local-date.js';
-import { DEFAULT_SHELF_LIFE_DAYS } from '../../domain/stock/expiry.js';
 import {
+  toAlertSettings,
   toCookedBatch,
   toIngredient,
   toLedgerEntry,
@@ -13,6 +13,7 @@ import {
   toMenu,
   toNoFeedRecord,
   toSlotSchedule,
+  toThresholds,
 } from './mappers/state.mapper.js';
 import { PrismaTransaction } from './prisma.service.js';
 
@@ -66,6 +67,10 @@ export class PrismaHouseholdStateRepository {
     const rulesRow = await tx.mealPlanningRules.findUnique({ where: { householdId } });
     const pairingRows = await tx.forbiddenPairing.findMany({ where: { householdId }, orderBy: { id: 'asc' } });
     const settingsRow = await tx.alertSettings.findUnique({ where: { householdId } });
+    const thresholdRows = await tx.ingredientThreshold.findMany({
+      where: { householdId },
+      orderBy: { ingredientId: 'asc' },
+    });
 
     const ingredients = ingredientRows.map(toIngredient);
     const schedules = scheduleRows.map(toSlotSchedule);
@@ -126,7 +131,9 @@ export class PrismaHouseholdStateRepository {
       batches,
       entries: entryRows.map(toLedgerEntry),
       rules: toMealPlanningRules(rulesRow, pairingRows),
-      shelfLifeDays: settingsRow?.shelfLifeDays ?? DEFAULT_SHELF_LIFE_DAYS,
+      textGuidance: rulesRow?.textGuidance ?? null,
+      alertSettings: toAlertSettings(settingsRow),
+      thresholds: toThresholds(thresholdRows),
     };
   }
 

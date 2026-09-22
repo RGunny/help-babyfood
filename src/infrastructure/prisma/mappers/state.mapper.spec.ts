@@ -1,6 +1,8 @@
 import { localDate } from '../../../domain/shared/local-date.js';
 import { localTime } from '../../../domain/shared/local-time.js';
 import {
+  DEFAULT_BRIEF_TIME,
+  toAlertSettings,
   toCookedBatch,
   toIngredient,
   toLedgerEntry,
@@ -9,6 +11,7 @@ import {
   toMenu,
   toNoFeedRecord,
   toSlotSchedule,
+  toThresholds,
 } from './state.mapper.js';
 
 const date = (value: string) => new Date(`${value}T00:00:00.000Z`);
@@ -233,5 +236,42 @@ describe('식단 규칙 매핑', () => {
       maxFirstIntroductionsPerDay: 1,
       firstIntroductionSlot: 'morning',
     });
+  });
+});
+
+describe('알람 설정 매핑', () => {
+  it('설정 행이 없으면 기본 브리프 시각과 기본 임계일이다', () => {
+    expect(toAlertSettings(null)).toEqual({
+      briefTime: localTime(DEFAULT_BRIEF_TIME),
+      shelfLifeDays: 14,
+    });
+  });
+
+  it('저장된 시각과 임계일을 그대로 옮긴다', () => {
+    expect(toAlertSettings({ briefTime: '06:45', shelfLifeDays: 10 })).toEqual({
+      briefTime: localTime('06:45'),
+      shelfLifeDays: 10,
+    });
+  });
+
+  it('시각 형식이 아니면 거부한다', () => {
+    expect(() => toAlertSettings({ briefTime: '7:30', shelfLifeDays: 14 })).toThrow();
+  });
+});
+
+describe('임계개수 매핑', () => {
+  it('재료별 개수를 맵으로 만든다', () => {
+    const thresholds = toThresholds([
+      { ingredientId: 'beef', thresholdCubes: 3 },
+      { ingredientId: 'cucumber', thresholdCubes: 0 },
+    ]);
+    expect([...thresholds]).toEqual([
+      ['beef', 3],
+      ['cucumber', 0],
+    ]);
+  });
+
+  it('행이 없으면 빈 맵이다', () => {
+    expect(toThresholds([]).size).toBe(0);
   });
 });

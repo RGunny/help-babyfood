@@ -143,7 +143,7 @@ export class StockService {
         state.batches,
         state.entries,
         today,
-        state.shelfLifeDays,
+        state.alertSettings.shelfLifeDays,
       );
       return { ingredients, expiryAlerts: batchesNeedingExpiryAlert(ingredients) };
     });
