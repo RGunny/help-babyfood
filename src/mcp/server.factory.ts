@@ -12,6 +12,13 @@ import { ReactionService } from '../application/reaction.service.js';
 import { RulesService } from '../application/rules.service.js';
 import { StockService } from '../application/stock.service.js';
 import { Caller } from './auth/caller.js';
+import { registerAlertTools } from './tools/alert.tools.js';
+import { registerIngredientTools } from './tools/ingredient.tools.js';
+import { registerMealPlanTools } from './tools/meal-plan.tools.js';
+import { registerMenuTools } from './tools/menu.tools.js';
+import { registerNoFeedTools } from './tools/no-feed.tools.js';
+import { registerReactionTools } from './tools/reaction.tools.js';
+import { registerRulesTools } from './tools/rules.tools.js';
 import { registerStockTools } from './tools/stock.tools.js';
 
 const SERVER_NAME = 'help-babyfood';
@@ -46,5 +53,12 @@ export interface ToolDeps {
 export function buildServer(deps: ToolDeps, caller: Caller): McpServer {
   const server = new McpServer({ name: SERVER_NAME, version: SERVER_VERSION });
   registerStockTools(server, deps, caller);
+  registerMealPlanTools(server, deps, caller);
+  registerNoFeedTools(server, deps, caller);
+  registerRulesTools(server, deps, caller);
+  registerReactionTools(server, deps, caller);
+  registerAlertTools(server, deps, caller);
+  registerIngredientTools(server, deps, caller);
+  registerMenuTools(server, deps, caller);
   return server;
 }
