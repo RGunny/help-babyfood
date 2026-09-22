@@ -1,0 +1,19 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(pnpm typecheck)",
+      "Bash(pnpm lint)",
+      "Bash(pnpm test)",
+      "Bash(pnpm test:int)",
+      "Bash(pnpm test:cov)",
+      "Bash(pnpm build)",
+      "Bash(git status:*)",
+      "Bash(git diff:*)",
+      "Bash(git log:*)",
+      "Bash(git show:*)",
+      "Bash(python3 scripts/preflight.py:*)",
+      "Bash(python3 scripts/export-prompts.py:*)",
+      "Bash(python3 scripts/gen-docs-diff.py:*)"
+    ]
+  }
+}
