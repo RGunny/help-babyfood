@@ -13,4 +13,7 @@ src/generated/
 # 세션 작업 기록은 저장소에 넣지 않는다.
 cc-logs/
 
+# 하네스 스크립트의 파이썬 캐시.
+scripts/__pycache__/
+
 .DS_Store
