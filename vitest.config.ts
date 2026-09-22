@@ -10,7 +10,9 @@ export default defineConfig({
     coverage: {
       provider: 'v8',
       include: ['src/**/*.ts'],
-      exclude: ['src/**/*.spec.ts', 'src/main.ts', 'src/generated/**'],
+      // main.ts와 scripts는 진입점이다. 하는 일이 인자를 읽어 배선을 부르는 것뿐이라
+      // 테스트가 덮을 것이 없고, 집계에 들어가면 계층별 숫자만 흐려진다.
+      exclude: ['src/**/*.spec.ts', 'src/main.ts', 'src/scripts/**', 'src/generated/**'],
       // Stock and date rules fail silently, so the domain core must stay almost fully covered.
       // 애플리케이션과 영속화는 통합 테스트가 덮으므로 `pnpm test:cov`는 두 프로젝트를 함께
       // 돌린다(Docker 필요). 단위 테스트만 돌리려면 `pnpm test`를 쓴다.
@@ -18,6 +20,9 @@ export default defineConfig({
         'src/domain/**/*.ts': { lines: 95, branches: 95, functions: 95, statements: 95 },
         'src/application/**/*.ts': { lines: 95, branches: 85, functions: 90, statements: 90 },
         'src/infrastructure/**/*.ts': { lines: 95, branches: 85, functions: 85, statements: 90 },
+        // 도구는 어댑터라 분기가 적다. 낮은 쪽은 이름을 못 찾았을 때의 대비 경로와
+        // 도메인·애플리케이션이 아닌 예외를 다시 던지는 가지다.
+        'src/mcp/**/*.ts': { lines: 90, branches: 75, functions: 90, statements: 90 },
       },
     },
     projects: [

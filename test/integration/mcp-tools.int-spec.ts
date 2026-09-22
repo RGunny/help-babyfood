@@ -206,6 +206,27 @@ describe('재료와 메뉴', () => {
     ]);
   });
 
+  it('1회분 중량을 바꾸면 옛 배치가 중량 불일치로 잡힌다', async () => {
+    await seedMasters();
+    await call('register_cooked_batch', {
+      idempotencyKey: nextKey(),
+      ingredientName: '소고기',
+      cubeWeightGram: 10,
+      cookedOn: '2026-09-20',
+      cubes: 5,
+    });
+
+    await call('update_ingredient_serving_weight', {
+      idempotencyKey: nextKey(),
+      name: '소고기',
+      servingWeightGram: 15,
+    });
+
+    const status = await call('get_stock_status');
+    const beef = status.ingredients.find((row: any) => row.ingredientName === '소고기');
+    expect([beef.total, beef.weightMismatched]).toEqual([5, 5]);
+  });
+
   it('메뉴 구성을 바꾸면 그대로 반영된다', async () => {
     await seedMasters();
     await call('update_menu', {
@@ -350,6 +371,43 @@ describe('식단', () => {
 
     const plan = await call('get_meal_plan', { from: '2026-09-22', to: '2026-09-24' });
     expect(plan.days.every((day: any) => day.slots[0].meal === null)).toBe(true);
+  });
+
+  it('미리보기도 제약 위반을 경고로 알린다', async () => {
+    await call('update_meal_planning_rules', {
+      idempotencyKey: nextKey(),
+      forbiddenPairings: [{ ingredientNames: ['소고기', '애호박'], scope: 'same_meal' }],
+      maxFirstIntroductionsPerDay: null,
+      firstIntroductionSlot: null,
+      textGuidance: null,
+    });
+
+    const preview = await call('import_meal_plan', {
+      idempotencyKey: nextKey(),
+      dryRun: true,
+      slot: 'morning',
+      meals: [
+        { composition: { baseMenuName: '쌀오트밀죽', toppingIngredientNames: ['소고기', '애호박'] } },
+      ],
+      fedThrough: null,
+    });
+
+    expect(preview.warnings.map((warning: any) => warning.code)).toContain('FORBIDDEN_PAIRING');
+    expect(preview.warnings[0].ingredientNames.sort()).toEqual(['소고기', '애호박']);
+  });
+
+  it('식단시간 형식이 아니면 끼니를 열 수 없다', async () => {
+    const result = await client.callTool({
+      name: 'start_meal_slot',
+      arguments: {
+        idempotencyKey: nextKey(),
+        slot: 'afternoon',
+        startDate: '2026-09-22',
+        mealTime: '25:00',
+      },
+    });
+
+    expect((result as { isError?: boolean }).isError).toBe(true);
   });
 
   it('확정하면 달력에 이름으로 나온다', async () => {
@@ -540,6 +598,81 @@ describe('자동 차감과 미급여', () => {
     expect(report.slots.map((entry: any) => entry.slot).sort()).toEqual(['afternoon', 'morning']);
     const rowsInDb = await services.prisma.noFeedRecord.count({ where: { householdId: household.id } });
     expect(rowsInDb).toBe(2);
+  });
+
+  it('해동 후 미급여는 그 날짜 식단의 큐브를 폐기로 기록한다', async () => {
+    clock.set('2026-09-22', '11:00');
+    // 식단시간이 지나 차감이 일어난 뒤에 등록해야 해동 폐기가 생긴다.
+    await call('update_planned_meal', {
+      idempotencyKey: nextKey(),
+      date: '2026-09-22',
+      slot: 'morning',
+      composition: { baseMenuName: '쌀오트밀죽', toppingIngredientNames: ['소고기'] },
+    });
+    const before = await call('get_stock_status');
+    const beefBefore = before.ingredients.find((row: any) => row.ingredientName === '소고기').total;
+
+    const report = await call('register_no_feed', {
+      idempotencyKey: nextKey(),
+      date: '2026-09-22',
+      slot: 'morning',
+      thawed: true,
+      reason: '해동해 뒀는데 안 먹음',
+    });
+
+    expect(report.slots[0].undiscardable).toEqual([]);
+    const after = await call('get_stock_status');
+    const beefAfter = after.ingredients.find((row: any) => row.ingredientName === '소고기').total;
+    // 소비가 취소되어 돌아온 뒤 같은 수량이 폐기되므로 합계는 그대로다.
+    expect(beefAfter).toBe(beefBefore);
+    const discards = await services.prisma.stockLedgerEntry.count({
+      where: { householdId: household.id, type: 'discarded' },
+    });
+    expect(discards).toBeGreaterThan(0);
+  });
+
+  it('실제 급여 내용을 고치면 차감이 따라 바뀐다', async () => {
+    clock.set('2026-09-22', '11:00');
+    await call('update_planned_meal', {
+      idempotencyKey: nextKey(),
+      date: '2026-09-22',
+      slot: 'morning',
+      composition: { baseMenuName: '쌀오트밀죽', toppingIngredientNames: ['소고기'] },
+    });
+
+    await call('update_meal_actual_items', {
+      idempotencyKey: nextKey(),
+      date: '2026-09-22',
+      slot: 'morning',
+      composition: { baseMenuName: '쌀오트밀죽', toppingIngredientNames: ['애호박'] },
+    });
+
+    const plan = await call('get_meal_plan', { from: '2026-09-22', to: '2026-09-22' });
+    expect(plan.days[0].slots[0].meal.actual.toppingIngredientNames).toEqual(['애호박']);
+    const status = await call('get_stock_status');
+    expect(status.ingredients.find((row: any) => row.ingredientName === '소고기').total).toBe(10);
+  });
+
+  it('실제 급여 내용을 지우면 계획대로 돌아간다', async () => {
+    clock.set('2026-09-22', '11:00');
+    await call('update_meal_actual_items', {
+      idempotencyKey: nextKey(),
+      date: '2026-09-22',
+      slot: 'morning',
+      composition: { baseMenuName: '쌀오트밀죽', toppingIngredientNames: ['애호박'] },
+    });
+
+    await call('update_meal_actual_items', {
+      idempotencyKey: nextKey(),
+      date: '2026-09-22',
+      slot: 'morning',
+      composition: null,
+    });
+
+    const plan = await call('get_meal_plan', { from: '2026-09-22', to: '2026-09-22' });
+    expect(plan.days[0].slots[0].meal.actual).toBeNull();
+    const status = await call('get_stock_status');
+    expect(status.ingredients.find((row: any) => row.ingredientName === '소고기').total).toBe(9);
   });
 
   it('미급여를 취소하면 날짜가 당겨진다', async () => {
