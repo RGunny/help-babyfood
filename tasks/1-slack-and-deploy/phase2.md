@@ -1,5 +1,16 @@
 # Phase 2: persistence
 
+## 이 phase는 재실행이다
+
+**작업 산출물은 이미 커밋되어 있다.** 스키마, `20260922163337_slack_delivery` 마이그레이션, `brief-delivery-log.repository.ts`, `link-slack.ts`, 통합 테스트 둘이 전부 저장소에 있다. 처음 실행에서 AC 하나(`pnpm db:migrate`)만 실패했고, 그 원인은 이 phase와 무관한 기존 drift였다. phase `1b`가 그것을 고쳤다.
+
+**그러니 이번에는 만들지 말고 검증하라.**
+
+- **마이그레이션을 새로 만들지 마라.** `pnpm db:migrate --create-only`를 돌리면 빈 `slack_delivery` 마이그레이션이 하나 더 생긴다. AC가 그것을 잡는다.
+- 아래 "작업 내용"은 무엇이 있어야 하는지를 적은 명세다. 이미 있는 것과 다르면 고치고, 같으면 그대로 두어라.
+- AC를 전부 돌려 통과하면 status를 `completed`로 바꾸고 끝낸다. 바꿀 것이 없으면 커밋할 것도 없다. 그때는 커밋하지 마라.
+
+
 ## 사전 준비
 
 **전제**: 아래가 빈 결과여야 한다.
@@ -268,10 +279,16 @@ git diff --quiet HEAD -- src/application/ src/mcp/ src/scheduler/
 # 9) 도메인 불변
 git diff --quiet HEAD -- src/domain/
 
-# 10) 마이그레이션에 drift가 없다
-pnpm db:migrate
+# 10) 마이그레이션을 새로 만들지 않았다
+test -z "$(git status --porcelain -- prisma/migrations/)"
+test "$(ls prisma/migrations | grep -c slack_delivery)" = "1"
 
-# 11) 타입, 린트, 테스트
+# 11) 로컬 DB를 최신으로 만든 뒤 스키마와 DB가 일치한다
+docker compose up -d
+pnpm db:deploy
+pnpm db:drift
+
+# 12) 타입, 린트, 테스트
 pnpm typecheck
 pnpm lint
 pnpm test
@@ -279,7 +296,7 @@ pnpm test:int
 pnpm test:cov
 ```
 
-10번은 로컬 PostgreSQL이 필요하다. 없으면 `docker compose up -d`로 띄운 뒤 실행하라. "Already in sync"가 나와야 한다.
+11번은 로컬 PostgreSQL이 필요하다. `pnpm db:drift`는 살아 있는 DB와 스키마를 비교해 차이가 없으면 0, 있으면 2로 끝난다. 프롬프트를 띄우지 않는다.
 
 ## AC 검증 방법
 
@@ -298,7 +315,9 @@ AC 통과와 index.json 갱신을 마쳤으면 커밋하라. 메시지는 `feat(
 - **`src/slack`을 만들지 마라.** phase 3이다.
 - **`SLACK_BOT_TOKEN`이나 `.env.example`을 건드리지 마라.** phase 3이다.
 - **`src/domain`을 고치지 마라.**
-- **기존 마이그레이션 파일을 고치지 마라.** 새 파일만 더한다.
+- **기존 마이그레이션 파일을 고치지 마라.** 이미 적용됐고 체크섬이 어긋난다.
+- **마이그레이션을 새로 만들지 마라.** 이번은 재실행이고 `slack_delivery` 하나로 끝이다.
+- **`pnpm db:migrate`를 돌리지 마라.** 프롬프트를 띄운다. `pnpm db:drift`를 쓴다.
 - **`vitest.config.ts`의 임계값을 낮추지 마라.**
 - **`@slack/types`를 포함해 의존성을 설치하지 마라.**
 - **`tasks/` 안의 다른 파일을 고치지 마라.** `tasks/1-slack-and-deploy/index.json`의 phase 2 status만 갱신한다.

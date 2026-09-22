@@ -2,7 +2,7 @@
   "project": "help-babyfood",
   "task": "slack-and-deploy",
   "prompt": "기획안 9장의 5단계를 구현한다. 브리프 Slack 발송과 재시도, 발송 이력, 버튼 응답 수신, Railway 배포 설정까지 만든다. Slack 앱과 Railway 프로젝트는 아직 없으므로 실제 연결은 docs/user-intervention.md로 넘긴다.",
-  "totalPhases": 8,
+  "totalPhases": 9,
   "created_at": "2026-09-23T01:07:10+0900",
   "phases": [
     {
@@ -21,12 +21,16 @@
       "completed_at": "2026-09-23T01:31:00+0900"
     },
     {
+      "phase": "1b",
+      "name": "migration-drift",
+      "status": "pending",
+      "requiresDocker": true
+    },
+    {
       "phase": 2,
       "name": "persistence",
-      "status": "error",
-      "requiresDocker": true,
-      "started_at": "2026-09-23T01:30:48+0900",
-      "error_message": "AC 10번 `pnpm db:migrate`가 실패한다. 마이그레이션을 적용한 뒤 \"Already in sync\"가 아니라 \"Enter a name for the new migration:\" 프롬프트에서 멈춘다. stdin을 닫고 돌리면 [ELIFECYCLE] Command failed로 끝난다. 원인은 phase 2와 무관한 기존 drift다. 20260922023722_member_token 마이그레이션이 손으로 덧붙인 `member_id_household_id_key`(UNIQUE)와 `member_token_member_household_fkey`(복합 FK)를 prisma/schema.prisma가 선언하지 못해, Prisma가 매번 그 둘을 지우는 마이그레이션을 새로 만들려 한다. 빈 DB에 `prisma migrate deploy`로 세 마이그레이션을 모두 적용한 뒤 `prisma migrate diff --from-config-datasource --to-schema prisma/schema.prisma --script`를 돌리면 출력이 정확히 `ALTER TABLE \"member_token\" DROP CONSTRAINT \"member_token_member_household_fkey\";`와 `DROP INDEX \"member_id_household_id_key\";` 둘뿐이고, 이번 phase가 더한 brief_delivery/reaction_prompt_delivery/delivery_status/slack_channel_id는 하나도 나오지 않는다. HEAD의 schema.prisma와 phase 2 적용 전 DB로 같은 diff를 돌려도 같은 두 줄이 나오므로 phase 2 이전부터 있던 문제다. 고치려면 (a) Prisma가 만든 DROP 두 줄을 마이그레이션에 넣거나 — 토큰의 구성원이 토큰의 가정 소속이어야 한다는 제약이 사라지므로 회귀다 — (b) schema.prisma의 Member에 @@unique([id, householdId])를, MemberToken에 (memberId, householdId) 복합 관계를 더해 선언해야 한다. (b)는 이번 phase 범위 밖의 모델과 생성 클라이언트를 바꾸므로 \"phase에 명시된 것만 하세요\"에 걸려 하지 않았다. 나머지 AC는 모두 통과했다. 1~9번 정적 검사 전부 통과, pnpm typecheck / pnpm lint / pnpm test(317) / pnpm test:int(310) / pnpm test:cov 모두 exit 0이고 커버리지 임계값도 충족한다. 20260922163337_slack_delivery는 적용됐고 스키마와 일치한다."
+      "status": "pending",
+      "requiresDocker": true
     },
     {
       "phase": 3,
