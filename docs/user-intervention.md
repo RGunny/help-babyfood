@@ -22,7 +22,20 @@
 
 이 토큰이 연결되는 곳은 5단계다. 기획안 9장의 5단계 범위가 "브리프 발송과 재시도, 버튼 응답"이고, 기획안 5장이 브리프 구성과 버튼(끼니별 미급여, 반응 없음과 반응 있음, 폐기 완료)을 정해 두었다. 버튼 응답을 누가 눌렀는지는 구성원의 Slack 사용자 ID로 매핑하며, 그 자리는 `prisma/schema.prisma`의 `slack_user_id`에 이미 있다.
 
-필요한 스코프의 정확한 목록은 아직 확정하지 않았다. 브리프를 채널에 보내려면 메시지 발송 권한이 필요하고, 버튼 응답은 기획안 8장이 Socket Mode가 아니라 HTTP 수신으로 정했으므로 요청 URL 설정이 함께 필요하다. 구체적인 스코프와 URL은 5단계에서 발송 코드를 쓸 때 정한다. 토큰을 넣을 환경 변수도 아직 없다. 지금 `.env.example`에는 Slack 항목이 없고, 5단계에서 추가한다.
+콘솔에서 넣을 값은 5단계에서 확정했다(`docs/adr/0006-slack-delivery-and-deployment.md`).
+
+| 항목 | 값 |
+|---|---|
+| 봇 스코프 | `chat:write` |
+| Interactivity의 Request URL | `https://<서버 주소>/slack/interactions` |
+| 봇 토큰(`xoxb-`로 시작) | 환경 변수 `SLACK_BOT_TOKEN` |
+| 서명 비밀(Signing Secret) | 환경 변수 `SLACK_SIGNING_SECRET` |
+
+스코프가 `chat:write` 하나인 이유는 서버가 Slack에 하는 일이 `chat.postMessage` 하나이기 때문이다. 버튼 응답의 통보는 Slack이 요청 본문에 넣어 주는 일회용 `response_url`로 보내므로 스코프를 요구하지 않는다.
+
+서명 비밀이 필요한 이유는 수신이 HTTP이기 때문이다. 기획안 8장이 Socket Mode가 아니라 HTTP 수신으로 정했고, 공개된 URL로 들어온 요청이 Slack에서 온 것인지는 `X-Slack-Signature` 검증으로만 판정한다. 이 값은 봇 토큰과 다른 값이고 앱 설정의 Basic Information에 있다.
+
+브리프를 받을 채널에 봇을 초대해야 한다. 초대하지 않으면 `chat.postMessage`가 `not_in_channel`로 실패한다. 채널 id를 가정에 연결하는 것은 `pnpm slack-link`로 하며, 그것은 서버가 뜬 뒤에 한다. 이 명령은 `DATABASE_URL`이 가리키는 데이터베이스에 쓴다. 채널이 연결되지 않은 가정의 그날 브리프는 재시도 없이 건너뛰고 다음 날 아침부터 발송된다(ADR 0006 "재시도 정책").
 
 ## 3. Railway 프로젝트와 Postgres를 만들고 PITR을 켠다
 
@@ -31,6 +44,20 @@
 결제 수단 등록과 플랜 선택은 사람 몫이다. 그리고 확인해야 할 것이 하나 남아 있다. `docs/adr/0003-postgres-hosting-railway.md`는 상태를 "채택 (PITR 플랜 조건은 프로비저닝 때 확인)"으로 적어 두었고, 기획안 10장도 "Railway Postgres PITR의 플랜 조건. 공식 문서에 없어서 프로비저닝 때 확인한다"를 미정으로 남겼다. 어느 플랜부터 PITR이 되는지는 지금 모른다. 콘솔에서 직접 보고 판정한다.
 
 ADR 0003이 같은 문서에서 요구하는 것이 셋 더 있다. 복구 가능 구간은 PITR을 켠 뒤의 첫 베이스 백업부터이므로 운영 데이터를 넣기 전에 켠다. 복구 절차는 운영 데이터를 넣기 전에 한 번 실제로 수행해 본다. 서버와 DB는 사설망으로 연결하고 DB를 외부에 노출하지 않는다.
+
+서비스 환경 변수는 콘솔에서 넣는다. 배포가 필요로 하는 것은 다섯이다.
+
+| 변수 | 값 |
+|---|---|
+| `DATABASE_URL` | Railway Postgres의 사설망 접속 문자열 |
+| `MCP_ALLOWED_HOSTS` | 서버의 실제 호스트 이름 |
+| `SLACK_BOT_TOKEN` | 2번에서 받은 봇 토큰 |
+| `SLACK_SIGNING_SECRET` | 2번에서 받은 서명 비밀 |
+| `SCHEDULER_ENABLED` | `true` |
+
+`MCP_ALLOWED_HOSTS`는 빈 값으로 두면 `localhost`만 허용한다. 배포된 서버의 실제 주소를 넣지 않으면 `/mcp`로 들어온 모든 요청이 403이 되고, 증상은 Claude Code에서 "연결 실패"로만 보인다(`.env.example`).
+
+`SCHEDULER_ENABLED`를 false로 두면 매분 도는 크론이 등록되지 않는다. 그러면 자동 차감과 브리프 발송이 둘 다 멈춘다. 브리프 발송이 같은 tick에 붙어 있기 때문이다(`docs/adr/0006-slack-delivery-and-deployment.md`). 자동 차감이 조용히 멈추는 것은 ADR 0005가 "대가와 남는 위험"에 적어 둔 항목이고, 5단계부터는 브리프가 오지 않는 것으로도 드러난다.
 
 ## 4. 구성원 토큰을 발급해 부모의 MCP 설정에 넣는다
 

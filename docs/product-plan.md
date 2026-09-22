@@ -258,6 +258,14 @@ MCP는 공식 SDK v2를 직접 쓰고 `/mcp` 한 경로에 마운트하며, 세�
 
 브리프는 애플리케이션 읽기 모델(`src/application/daily-brief.ts`)이 기존 도메인 함수를 조합해 만든다. 저장하지 않기로 한 보류된 차감은 읽어 온 상태에 `reconcileMeals`를 다시 걸어 `held`만 가져가며, 그래서 `get_daily_brief`는 쓰기 트랜잭션을 타지 않는다. 브리프 발송 이력은 발송이 생기는 5단계에 둔다. 근거는 `docs/adr/0005-scheduler-and-daily-brief.md`에 있다.
 
+### 5단계에서 정한 것
+
+Slack 호출은 SDK 없이 `fetch`로 한다. 부르는 것이 `chat.postMessage` 하나이고 하루 두 건이라 `@slack/web-api`가 끌고 오는 큐와 재시도 계층이 필요하지 않으며, 버튼 응답의 `response_url`은 어차피 SDK 경로가 아니다. 대신 Slack Web API가 실패도 HTTP 200에 `{"ok": false}` 본문으로 돌려준다는 것을 어댑터가 직접 봐야 한다. 발송 이력은 `brief_delivery`(가정, 날짜)와 `reaction_prompt_delivery`(가정, 날짜, 끼니) 둘이고, 기본키가 하루 한 건을 강제한다. 클레임은 `INSERT ... ON CONFLICT DO NOTHING`이라 인스턴스가 둘이어도 한쪽만 행을 얻는다. 재시도는 1분, 5분, 15분, 60분 뒤 네 번이고 5회로 끝난다.
+
+브리프 시각 판정은 클레임 질의가 `brief_time <= :time`인 가정만 고르는 방식이다. 시각은 `ClockPort`가 준 Asia/Seoul 벽시계 문자열이고, 알람 설정 행이 없는 가정을 위해 기본 시각으로 `COALESCE`한다. 후속 메시지는 식단시간으로 먼저 클레임한 뒤 브리프를 만들어 보고 판정한다. 식단의 날짜가 저장되지 않아 "이미 먹였는가"를 조회로 물을 수 없기 때문이다. 버튼 응답의 멱등키는 메시지 타임스탬프, `action_id`, 버튼 값을 합친 값이고, 같은 버튼을 다시 탭하면 기록된 응답이 그대로 돌아온다.
+
+버튼 수신은 서명을 검증한 뒤 처리보다 먼저 200을 내보낸다. 버튼이 부르는 유스케이스가 전부 가정 행 잠금을 타고 그 대기 한계가 Slack의 3초보다 크기 때문이다. 결과와 오류는 `response_url`에 ephemeral로 보낸다. 배포 설정은 `railway.json`에 두고 마이그레이션은 프리디플로이 명령으로 돌리며, `main.ts`에 종료 훅을 넣어 도는 크론과 커넥션을 정리한다. Slack 코드는 발송과 수신이 버튼 값 인코딩을 공유하므로 `src/slack` 한곳에 모으고, 애플리케이션은 `BriefDeliveryPort`까지만 알고 Slack을 모른다. 근거는 `docs/adr/0006-slack-delivery-and-deployment.md`에 있다.
+
 ## 10. 미정 사항
 
 - Railway Postgres PITR의 플랜 조건. 공식 문서에 없어서 프로비저닝 때 확인한다.
