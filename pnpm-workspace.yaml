@@ -11,3 +11,7 @@ allowBuilds:
   # testcontainers -> dockerode -> @grpc/proto-loader -> protobufjs.
   # postinstall은 의존성의 버전 표기가 다를 때 경고만 출력한다.
   protobufjs: false
+  # testcontainers -> dockerode -> docker-modem -> ssh2 (-> cpu-features).
+  # 둘 다 node-gyp로 선택적 네이티브 바인딩을 빌드하고, 없으면 순수 JS로 동작한다. 개발 의존성이다.
+  ssh2: false
+  cpu-features: false

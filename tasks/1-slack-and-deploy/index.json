@@ -63,8 +63,9 @@
     {
       "phase": 6,
       "name": "deploy",
-      "status": "pending",
-      "requiresDocker": true
+      "status": "completed",
+      "requiresDocker": true,
+      "started_at": "2026-09-23T02:17:46+0900"
     },
     {
       "phase": 7,

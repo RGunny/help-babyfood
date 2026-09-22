@@ -1,0 +1,21 @@
+# node_modules는 590MB다. 빌드 컨텍스트에 들어가면 매 빌드가 그만큼 느려지고, 이미지 안에서 다시 설치한다.
+node_modules
+dist
+coverage
+.git
+
+# 환경 변수는 Railway가 준다. 이미지에 넣지 않는다.
+.env
+.env.*
+!.env.example
+
+# 세션 기록과 하네스 파일은 이미지와 무관하다.
+cc-logs
+tasks
+prompts
+scripts/__pycache__
+
+# prisma/(마이그레이션)와 docs/는 제외하지 않는다.
+
+# 로컬에서 만든 Prisma 생성물이 섞이지 않게 한다. 이미지 안에서 pnpm prisma:generate로 만든다.
+src/generated
