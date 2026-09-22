@@ -187,10 +187,15 @@ MCP는 에이전트가 서버를 호출하는 구조라서 서버가 먼저 알�
 | 미급여 | `register_no_feed(date, slot, thawed, reason)`, `cancel_no_feed(date, slot)` |
 | 식단 규칙 | `get_meal_planning_rules`, `update_meal_planning_rules` |
 | 알러지 | `record_feeding_reaction`, `get_ingredient_introduction_status` |
-| 알람 | `get_daily_brief`, `forecast_shortage`, `update_alert_settings` |
+| 알람 | `get_daily_brief`, `forecast_shortage`, `get_alert_settings`, `update_alert_settings` |
 | 재료 | `register_ingredient`, `add_ingredient_alias`, `update_ingredient_serving_weight` |
+| 메뉴 | `register_menu`, `update_menu`, `get_menus` |
 
 `register_no_feed`의 `slot`은 오전, 오후, 전체 중 하나다. `get_meal_plan`은 계산된 날짜와 일차가 붙은 달력 형태로 돌려준다.
+
+메뉴 도구는 3단계에서 더했다. 메뉴는 "쌀 1개 + 오트밀 1개"라는 큐브 수까지 가진 값인데 엑셀 식단표에는 이름만 있어서, 식단표 가져오기가 구성을 지어낼 수 없다. 재료와 같이 부모가 관리하는 마스터다. `get_alert_settings`도 같은 단계에서 더했다. `update_alert_settings`가 임계개수를 통째로 갈아 끼우므로 읽지 않고 쓰면 설정이 지워진다.
+
+`get_daily_brief`는 브리프 내용을 만드는 4단계에 속한다. 재료 목록 조회는 `get_ingredient_introduction_status`가 등록된 모든 재료를 한 줄씩 돌려주므로 따로 두지 않는다.
 
 ## 8. 아키텍처
 
@@ -215,6 +220,7 @@ MCP 도구, Slack 버튼 처리, 스케줄러는 같은 서비스 계층을 호�
 | 런타임과 도구 | Node.js 24 이상, NestJS 12(ESM), Vitest, oxlint, pnpm 11 | `docs/adr/0001-runtime-and-tooling.md` |
 | ORM | Prisma 7 | `docs/adr/0002-orm-prisma.md` |
 | 데이터베이스 | Railway Postgres, PITR 활성화 | `docs/adr/0003-postgres-hosting-railway.md` |
+| MCP와 인증 | 공식 TypeScript SDK v2, 구성원별 Bearer 토큰 | `docs/adr/0004-mcp-server-and-auth.md` |
 
 ## 9. 구현 단계
 
@@ -229,6 +235,10 @@ MCP 도구, Slack 버튼 처리, 스케줄러는 같은 서비스 계층을 호�
 
 재료·메뉴·끼니·식단 추가와 반응 기록, 규칙과 알람 설정까지 7장의 도구가 필요로 하는 유스케이스를 모두 서비스로 두고, `PersistenceModule`과 `ApplicationModule`로 배선했다. 도입 상태는 급여 완료 식단 전체를 읽는 별도 읽기 모델로 계산하고, 식단 달력 조회가 그 결과로 식단 규칙 경고를 함께 돌려준다. 식단을 만드는 연산은 끼니의 마지막 뒤에 붙이는 것만 둔다. 순서와 날짜의 대응이 "1번부터 빈칸 없이"에 기대고 있어 중간 삽입은 그 전제를 깨뜨린다.
 | 3. MCP | 7장의 도구, 인증, 식단표와 과거 급여 이관 | Claude Code에서 재고와 식단을 관리할 수 있다 |
+
+3단계에서 정한 것은 넷이다. MCP는 공식 SDK v2를 직접 쓰고 `/mcp` 한 경로에 마운트하며, 세션 없이 요청마다 서버 인스턴스를 만든다. 인증은 구성원별 Bearer 토큰이고, 게이트는 OAuth 리소스 서버 모양을 그대로 써서 모바일 커넥터가 필요해지는 때에 검증 함수만 바꾸면 되게 뒀다. 가정과 구성원은 토큰에서만 나오고 도구 인자로 받지 않는다. 식단표 가져오기는 전용 유스케이스로 두고, 이관 여부는 계산된 날짜가 `fedThrough` 이하인지로 판정한다. 근거는 `docs/adr/0004-mcp-server-and-auth.md`에 있다.
+
+도구는 어댑터로만 둔다. 도구가 하는 일은 호출자 확인, 멱등키 전달, 두 오류 계층을 `isError` 결과로 바꾸기, id를 부모가 쓰는 이름으로 바꾸기 넷이다. 미리보기 검증은 확정과 같은 경로여야 하므로 애플리케이션에 둔다.
 | 4. 스케줄러 | 주기적 정합화, 브리프 내용 생성, 임계일과 소진 예측 계산 | 자동 차감이 돌고 브리프 내용을 도구로 조회할 수 있다 |
 | 5. Slack과 배포 | 브리프 발송과 재시도, 버튼 응답, Railway 배포와 PITR 설정 | 부모가 휴대폰으로 브리프를 받고 응답한다 |
 
@@ -236,7 +246,6 @@ MCP 도구, Slack 버튼 처리, 스케줄러는 같은 서비스 계층을 호�
 
 ## 10. 미정 사항
 
-- MCP 인증 방식. Claude Code는 원격 MCP 서버에 정적 `Authorization` 헤더를 지원하므로 구성원별 Bearer 토큰이 후보다. MCP 스펙의 표준은 OAuth 2.1이고, 모바일 앱 커넥터로 넓힐 때는 OAuth가 필요하다. MCP 도구 구현 단계에서 확정한다.
 - Railway Postgres PITR의 플랜 조건. 공식 문서에 없어서 프로비저닝 때 확인한다.
 - 식단 규칙의 제약 목록 확정
 - 2차의 Slack 자유 문장 입력에 쓸 모델과 provider
