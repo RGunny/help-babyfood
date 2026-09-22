@@ -31,8 +31,10 @@
     {
       "phase": 2,
       "name": "persistence",
-      "status": "pending",
-      "requiresDocker": true
+      "status": "completed",
+      "requiresDocker": true,
+      "started_at": "2026-09-23T01:59:36+0900",
+      "completed_at": "2026-09-23T02:01:20+0900"
     },
     {
       "phase": 3,
