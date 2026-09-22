@@ -13,22 +13,23 @@
 | `docs/adr/0002-orm-prisma.md` | Prisma 7, 일관성 경계와 적재 범위, 멱등키 |
 | `docs/adr/0003-postgres-hosting-railway.md` | Railway Postgres와 PITR |
 | `docs/adr/0004-mcp-server-and-auth.md` | MCP SDK v2, 구성원별 Bearer 토큰 |
+| `docs/adr/0005-scheduler-and-daily-brief.md` | 매분 도는 정합화, 브리프 조립과 보류된 차감 |
 
 규칙을 알고 싶으면 기획안 4장을 읽는다. 왜 그렇게 만들었는지는 ADR에 있다.
 
 ## 계층
 
 ```
-Claude Code ──MCP (Streamable HTTP)──> src/mcp ──> src/application ──> src/domain
-                                          │             │
-                                          │             └──> ports ──> src/infrastructure ──> PostgreSQL
-                                          └──> 인증(구성원 토큰)
+Claude Code ──MCP (Streamable HTTP)──> src/mcp (구성원 토큰 인증) ──┐
+                                                                    ├──> src/application ──> src/domain
+스케줄러 (매분 정합화) ──────────────> src/scheduler ───────────────┘             │
+                                                                                  └──> ports ──> src/infrastructure ──> PostgreSQL
 ```
 
 - `src/domain` 은 프레임워크, DB, 시스템 시계를 모른다. 현재 시각도 인자로 받는다.
 - `src/application` 은 NestJS를 모른다. 서비스는 생성자에 포트를 받는 평범한 클래스이고, 모듈이 `useFactory`로 조립한다.
-- `src/mcp` 는 어댑터다. 재고 규칙을 다시 쓰지 않고 애플리케이션을 부른다.
-- 스케줄러(4단계)와 Slack 버튼(5단계)도 같은 애플리케이션 서비스를 부른다.
+- `src/mcp` 와 `src/scheduler` 는 어댑터다. 재고 규칙을 다시 쓰지 않고 애플리케이션을 부른다.
+- Slack 버튼(5단계)도 같은 애플리케이션 서비스를 부른다.
 
 ## 개발 환경
 
@@ -78,10 +79,10 @@ claude mcp add --transport http babyfood https://<서버 주소>/mcp \
 
 ## 환경 변수
 
-`.env.example`에 설명과 함께 있다. 배포할 때 놓치기 쉬운 것은 `MCP_ALLOWED_HOSTS`다. 비워 두면 localhost만 허용하므로 모든 요청이 403이 된다.
+`.env.example`에 설명과 함께 있다. 배포할 때 놓치기 쉬운 것은 둘이다. `MCP_ALLOWED_HOSTS`는 비워 두면 localhost만 허용하므로 모든 요청이 403이 되고, `SCHEDULER_ENABLED`를 false로 두면 자동 차감이 조용히 멈춘다.
 
 ## 지금 되는 것과 안 되는 것
 
-3단계까지 끝났다(기획안 9장). Claude Code에서 재고와 식단을 관리할 수 있다.
+4단계까지 끝났다(기획안 9장). Claude Code에서 재고와 식단을 관리할 수 있고, 서버가 매분 정합화를 돌려 식단시간이 지난 끼니를 자동으로 차감한다. `get_daily_brief`로 오늘 브리프 내용을 조회할 수 있다.
 
-아직 스케줄러가 없어서 정합화는 쓰기 도구가 같은 트랜잭션에서 부를 때만 돈다. 아무도 도구를 부르지 않는 날에는 자동 차감이 일어나지 않는다. Slack 브리프와 버튼 응답, 배포도 남아 있다.
+남은 것은 5단계다. 브리프를 Slack으로 보내는 것과 버튼 응답, Railway 배포와 PITR 설정이 아직 없다. 지금은 브리프를 부모가 아니라 에이전트가 불러서 본다.
