@@ -44,6 +44,7 @@ async function bootApplicationModule() {
       mcpAllowedHosts: ['localhost'],
       mcpAllowedOrigins: ['localhost'],
       schedulerEnabled: false,
+      slackBotToken: 'xoxb-test',
     } satisfies AppEnv)
     .compile();
   await moduleRef.init();

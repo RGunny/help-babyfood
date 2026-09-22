@@ -77,6 +77,7 @@ export function buildServices(now: LocalDateTime, lookbackDays = 90): TestServic
     mcpAllowedHosts: ['localhost'],
     mcpAllowedOrigins: ['localhost'],
     schedulerEnabled: false,
+    slackBotToken: 'xoxb-test',
   }) as PrismaService;
   const clock = new MutableClock(now);
   const writer = new PrismaHouseholdWriter(prisma, new PrismaHouseholdStateRepository(lookbackDays), clock);

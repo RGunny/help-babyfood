@@ -25,6 +25,8 @@ export default defineConfig({
         'src/mcp/**/*.ts': { lines: 90, branches: 75, functions: 90, statements: 90 },
         // 스케줄러도 어댑터다. 도는 규칙은 애플리케이션과 도메인 쪽에서 덮인다.
         'src/scheduler/**/*.ts': { lines: 90, branches: 75, functions: 90, statements: 90 },
+        // Slack 발송도 어댑터다. 브리프를 줄로 바꾸고 보낼 뿐이고, 무엇을 보낼지는 애플리케이션이 정한다.
+        'src/slack/**/*.ts': { lines: 90, branches: 75, functions: 90, statements: 90 },
       },
     },
     projects: [

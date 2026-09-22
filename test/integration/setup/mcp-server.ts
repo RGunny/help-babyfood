@@ -37,6 +37,7 @@ export async function startMcpServer(clock: MutableClock): Promise<McpTestServer
       // 스케줄러는 끈다. 테스트 중간에 정합화가 끼어들면 아직 정산하지 않은 식단이 차감되고,
       // 원장을 세는 단정이 실행 시점에 따라 달라진다. 스케줄러 자체는 자기 테스트에서 돈다.
       schedulerEnabled: false,
+      slackBotToken: 'xoxb-test',
     } satisfies AppEnv)
     .overrideProvider(CLOCK)
     .useValue(clock satisfies ClockPort)

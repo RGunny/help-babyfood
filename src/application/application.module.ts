@@ -1,6 +1,8 @@
 import { Module, Provider } from '@nestjs/common';
 import { PersistenceModule } from '../infrastructure/prisma/persistence.module.js';
+import { SlackDeliveryModule } from '../slack/outbound/slack-delivery.module.js';
 import { AlertSettingsService } from './alert-settings.service.js';
+import { BriefDispatchService } from './brief-dispatch.service.js';
 import { DailyBriefService } from './daily-brief.service.js';
 import { ForecastService } from './forecast.service.js';
 import { IngredientService } from './ingredient.service.js';
@@ -9,11 +11,15 @@ import { MealPlanService } from './meal-plan.service.js';
 import { MealSlotService } from './meal-slot.service.js';
 import { MenuService } from './menu.service.js';
 import { NoFeedService } from './no-feed.service.js';
+import { BriefDeliveryLogPort } from './ports/brief-delivery-log.port.js';
+import { BriefDeliveryPort } from './ports/brief-delivery.port.js';
 import { ClockPort } from './ports/clock.port.js';
 import { FeedingHistoryPort } from './ports/feeding-history.port.js';
 import { HouseholdDirectoryPort } from './ports/household-directory.port.js';
 import { HouseholdReader, HouseholdWriter } from './ports/household-write.port.js';
 import {
+  BRIEF_DELIVERY,
+  BRIEF_DELIVERY_LOG,
   CLOCK,
   FEEDING_HISTORY,
   HOUSEHOLD_DIRECTORY,
@@ -100,11 +106,21 @@ const providers: Provider[] = [
       new DailyBriefService(reader, history, clock),
     inject: [HOUSEHOLD_READER, FEEDING_HISTORY, CLOCK],
   },
+  {
+    provide: BriefDispatchService,
+    useFactory: (
+      log: BriefDeliveryLogPort,
+      delivery: BriefDeliveryPort,
+      brief: DailyBriefService,
+      clock: ClockPort,
+    ) => new BriefDispatchService(log, delivery, brief, clock),
+    inject: [BRIEF_DELIVERY_LOG, BRIEF_DELIVERY, DailyBriefService, CLOCK],
+  },
 ];
 
 /** The use cases. MCP tools, the scheduler and Slack handlers all come through here. */
 @Module({
-  imports: [PersistenceModule],
+  imports: [PersistenceModule, SlackDeliveryModule],
   providers,
   exports: [
     StockService,
@@ -120,6 +136,7 @@ const providers: Provider[] = [
     RulesService,
     AlertSettingsService,
     DailyBriefService,
+    BriefDispatchService,
   ],
 })
 export class ApplicationModule {}

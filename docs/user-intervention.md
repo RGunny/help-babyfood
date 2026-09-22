@@ -75,6 +75,8 @@ pnpm member-token --household 재하네 --member 엄마 --label "엄마 노트�
 
 유출을 알아차렸을 때 할 수 있는 일은 `pnpm member-token --revoke <토큰 id>`뿐이고, 알아차리는 수단은 `--list`가 보여 주는 마지막 사용 시각뿐이다(ADR 0004 "대가와 남는 위험"). 토큰은 기본 180일 뒤 만료되므로 그때 다시 발급한다.
 
+`SLACK_BOT_TOKEN`이 필수 환경 변수가 되었으므로 `pnpm member-token`과 `pnpm slack-link`도 그 값이 환경에 있어야 돈다. 두 스크립트가 DB만 쓰지만 `readEnv()`로 설정을 읽고, `readEnv()`는 필수 값이 없으면 거부한다(`src/config/env.ts`).
+
 ## 5. 엑셀 식단표와 냉동고 재고를 실제로 이관한다
 
 - [ ] 엑셀 식단표를 에이전트에게 넘겨 `import_meal_plan`의 미리보기로 검증한 뒤 확정하고, 냉동고의 큐브를 조리일과 함께 세어 입고로 등록하고, 이미 검증이 끝난 재료 목록을 한 번에 등록한다.

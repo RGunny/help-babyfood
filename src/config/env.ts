@@ -30,6 +30,13 @@ export interface AppEnv {
    * in the middle of a test would settle meals the test had not settled yet.
    */
   readonly schedulerEnabled: boolean;
+  /**
+   * The bot token (`xoxb-`) that `chat.postMessage` is called with.
+   *
+   * Required, the way the database URL is: a server without it would claim each day's brief and
+   * then fail every attempt, and the failure would only show in the delivery log.
+   */
+  readonly slackBotToken: string;
 }
 
 const LOCALHOST = ['localhost', '127.0.0.1', '[::1]'];
@@ -42,6 +49,7 @@ export function readEnv(source: NodeJS.ProcessEnv = process.env): AppEnv {
     mcpAllowedHosts: hostList(source, 'MCP_ALLOWED_HOSTS'),
     mcpAllowedOrigins: hostList(source, 'MCP_ALLOWED_ORIGINS'),
     schedulerEnabled: flag(source, 'SCHEDULER_ENABLED', true),
+    slackBotToken: required(source, 'SLACK_BOT_TOKEN'),
   };
 }
 
