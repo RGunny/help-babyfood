@@ -103,6 +103,14 @@ export class PrismaHouseholdStateRepository {
           });
     const meals = mealRows.map(toMeal);
 
+    // 윈도와 무관하게 저장소 전체에서 센다. 적재된 식단의 최댓값을 쓰면 급여가 오래 끊겨
+    // 모든 식단이 윈도 밖에 있을 때 순서 1로 되돌아가 유니크 제약에 걸린다.
+    const highestOrders = await tx.meal.groupBy({
+      by: ['slot'],
+      where: { householdId },
+      _max: { mealOrder: true },
+    });
+
     const batchIds = await this.batchIdsInScope(tx, householdId, meals.map((meal) => meal.id), scope);
     const batchRows = await tx.cookedBatch.findMany({
       where: {
@@ -128,6 +136,9 @@ export class PrismaHouseholdStateRepository {
       menus: new Map<string, Menu>(menuRows.map(toMenu).map((menu) => [menu.id, menu])),
       calendar,
       meals,
+      nextMealOrders: new Map(
+        highestOrders.map((row) => [row.slot, (row._max.mealOrder ?? 0) + 1] as const),
+      ),
       batches,
       entries: entryRows.map(toLedgerEntry),
       rules: toMealPlanningRules(rulesRow, pairingRows),

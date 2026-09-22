@@ -92,9 +92,7 @@ export class MealPlanService {
         if (!state.calendar.hasSlot(command.slot)) {
           throw new DomainError('SLOT_NOT_SCHEDULED', `설정되지 않은 끼니입니다: ${command.slot}`);
         }
-        // 다음 순서는 저장소가 센다. 적재된 식단의 최댓값을 쓰면 급여가 오래 끊겨 모든 식단이
-        // 윈도 밖에 있을 때 순서 1로 되돌아가 유니크 제약에 걸린다.
-        const firstOrder = await context.nextMealOrder(command.slot);
+        const firstOrder = state.nextMealOrders.get(command.slot) ?? 1;
         const meals: Meal[] = [];
         for (const [index, draft] of command.meals.entries()) {
           meals.push(

@@ -28,6 +28,13 @@ export interface HouseholdState {
   readonly menus: ReadonlyMap<string, Menu>;
   readonly calendar: MealCalendar;
   readonly meals: readonly Meal[];
+  /**
+   * Order to give the next meal of each slot, counted over the whole store rather than over
+   * `meals`. The loaded meals cannot answer it: if feeding stopped long enough, every meal is
+   * consumed and outside the read window, and the highest loaded order would restart at an order
+   * already taken. A slot with no meal yet is absent, so the caller falls back to 1.
+   */
+  readonly nextMealOrders: ReadonlyMap<MealSlot, number>;
   readonly batches: readonly CookedBatch[];
   readonly entries: readonly LedgerEntry[];
   readonly rules: MealPlanningRules;

@@ -50,13 +50,6 @@ export interface MealWrites {
   applyMealStatuses(changes: readonly MealStatusChange[]): Promise<void>;
   /** Identified by slot and order, which is what makes a meal a meal. */
   upsertMeal(draft: MealDraft): Promise<Meal>;
-  /**
-   * Order to give the next meal of the slot, read from the store.
-   *
-   * The loaded state cannot answer this: if feeding stopped long enough, every meal is consumed and
-   * outside the read window, and the highest loaded order would restart at an order already taken.
-   */
-  nextMealOrder(slot: MealSlot): Promise<number>;
   addNoFeedRecord(record: NoFeedRecord): Promise<void>;
   removeNoFeedRecord(slot: MealSlot, date: LocalDate): Promise<void>;
   recordFeedingReaction(draft: FeedingReactionDraft): Promise<void>;

@@ -100,6 +100,7 @@ model Household {
   alertSettings     AlertSettings?
   thresholds        IngredientThreshold[]
   idempotency       IdempotencyRecord[]
+  memberTokens      MemberToken[]
 
   @@map("household")
 }
@@ -118,9 +119,35 @@ model Member {
   feedingReactions FeedingReaction[]
   cookedBatches    CookedBatch[]
   meals            Meal[]
+  tokens           MemberToken[]
 
   @@index([householdId])
   @@map("member")
+}
+
+/// 구성원이 MCP로 서버를 부를 때 쓰는 접근 토큰. 평문은 발급 때 한 번만 보이고
+/// 저장하는 것은 SHA-256 해시뿐이라, DB가 통째로 새어도 토큰을 되살릴 수 없다.
+model MemberToken {
+  id          String    @id @default(uuid(7)) @db.Uuid
+  householdId String    @map("household_id") @db.Uuid
+  memberId    String    @map("member_id") @db.Uuid
+  /// 조회 키. 평문 토큰의 SHA-256 hex 64자.
+  tokenHash   String    @unique @map("token_hash")
+  /// "엄마 노트북"처럼 어느 기기의 토큰인지 사람이 알아보는 이름.
+  label       String
+  /// 만료는 필수다. MCP SDK는 만료 시각이 없는 토큰을 무효로 본다.
+  expiresAt   DateTime  @map("expires_at") @db.Timestamptz(3)
+  /// 폐기한 시각. 행을 지우지 않는 것은 언제 누가 썼는지가 남아야 하기 때문이다.
+  revokedAt   DateTime? @map("revoked_at") @db.Timestamptz(3)
+  lastUsedAt  DateTime? @map("last_used_at") @db.Timestamptz(3)
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  household Household @relation(fields: [householdId], references: [id])
+  member    Member    @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@index([householdId])
+  @@index([memberId])
+  @@map("member_token")
 }
 
 model Ingredient {

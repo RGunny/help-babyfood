@@ -185,14 +185,6 @@ class PrismaWriteContext implements HouseholdWriteContext {
     }
   }
 
-  async nextMealOrder(slot: MealSlot): Promise<number> {
-    const highest = await this.tx.meal.aggregate({
-      where: { householdId: this.householdId, slot },
-      _max: { mealOrder: true },
-    });
-    return (highest._max.mealOrder ?? 0) + 1;
-  }
-
   async applyMealStatuses(changes: readonly MealStatusChange[]): Promise<void> {
     for (const change of changes) {
       await this.tx.meal.update({
