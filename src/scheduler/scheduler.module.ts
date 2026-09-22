@@ -4,6 +4,7 @@ import { ApplicationModule } from '../application/application.module.js';
 import type { AppEnv } from '../config/env.js';
 import { PersistenceModule } from '../infrastructure/prisma/persistence.module.js';
 import { APP_ENV } from '../infrastructure/prisma/prisma.service.js';
+import { BriefDispatchJob } from './brief-dispatch.job.js';
 import { ReconcileJob } from './reconcile.job.js';
 
 /**
@@ -25,6 +26,6 @@ import { ReconcileJob } from './reconcile.job.js';
       useFactory: (env: AppEnv) => ({ cronJobs: env.schedulerEnabled }),
     }),
   ],
-  providers: [ReconcileJob],
+  providers: [ReconcileJob, BriefDispatchJob],
 })
 export class SchedulerModule {}
