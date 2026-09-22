@@ -5,6 +5,11 @@
   "totalPhases": 1,
   "created_at": "2026-09-23T01:30:00+0900",
   "phases": [
-    { "phase": 0, "name": "docs", "status": "pending" }
+    {
+      "phase": 0,
+      "name": "docs",
+      "status": "completed",
+      "started_at": "2026-09-23T00:41:00+0900"
+    }
   ]
 }
