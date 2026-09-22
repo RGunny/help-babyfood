@@ -23,6 +23,8 @@ export default defineConfig({
         // 도구는 어댑터라 분기가 적다. 낮은 쪽은 이름을 못 찾았을 때의 대비 경로와
         // 도메인·애플리케이션이 아닌 예외를 다시 던지는 가지다.
         'src/mcp/**/*.ts': { lines: 90, branches: 75, functions: 90, statements: 90 },
+        // 스케줄러도 어댑터다. 도는 규칙은 애플리케이션과 도메인 쪽에서 덮인다.
+        'src/scheduler/**/*.ts': { lines: 90, branches: 75, functions: 90, statements: 90 },
       },
     },
     projects: [
