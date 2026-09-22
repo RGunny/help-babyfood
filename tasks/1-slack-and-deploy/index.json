@@ -1,0 +1,56 @@
+{
+  "project": "help-babyfood",
+  "task": "slack-and-deploy",
+  "prompt": "기획안 9장의 5단계를 구현한다. 브리프 Slack 발송과 재시도, 발송 이력, 버튼 응답 수신, Railway 배포 설정까지 만든다. Slack 앱과 Railway 프로젝트는 아직 없으므로 실제 연결은 docs/user-intervention.md로 넘긴다.",
+  "totalPhases": 8,
+  "created_at": "2026-09-23T01:07:10+0900",
+  "phases": [
+    {
+      "phase": 0,
+      "name": "docs",
+      "status": "pending"
+    },
+    {
+      "phase": 1,
+      "name": "application",
+      "status": "pending",
+      "requiresDocker": true
+    },
+    {
+      "phase": 2,
+      "name": "persistence",
+      "status": "pending",
+      "requiresDocker": true
+    },
+    {
+      "phase": 3,
+      "name": "slack-outbound",
+      "status": "pending",
+      "requiresDocker": true
+    },
+    {
+      "phase": 4,
+      "name": "scheduler",
+      "status": "pending",
+      "requiresDocker": true
+    },
+    {
+      "phase": 5,
+      "name": "slack-inbound",
+      "status": "pending",
+      "requiresDocker": true
+    },
+    {
+      "phase": 6,
+      "name": "deploy",
+      "status": "pending",
+      "requiresDocker": true
+    },
+    {
+      "phase": 7,
+      "name": "break-it",
+      "status": "pending",
+      "requiresDocker": true
+    }
+  ]
+}
