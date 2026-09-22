@@ -17,6 +17,7 @@
     "start:debug": "nest start --debug --watch",
     "start:prod": "node dist/main",
     "member-token": "nest build && node dist/scripts/mint-member-token.js",
+    "slack-link": "nest build && node dist/scripts/link-slack.js",
     "lint": "oxlint src/ test/",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "test": "vitest run --project unit",

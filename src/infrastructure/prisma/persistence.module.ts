@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ClockPort } from '../../application/ports/clock.port.js';
 import {
+  BRIEF_DELIVERY_LOG,
   CLOCK,
   FEEDING_HISTORY,
   HOUSEHOLD_DIRECTORY,
@@ -9,6 +10,7 @@ import {
 } from '../../application/ports/tokens.js';
 import { AppEnv, readEnv } from '../../config/env.js';
 import { SeoulClock } from '../clock.js';
+import { PrismaBriefDeliveryLog } from './brief-delivery-log.repository.js';
 import { PrismaFeedingHistoryRepository } from './feeding-history.repository.js';
 import { PrismaHouseholdDirectory } from './household-directory.repository.js';
 import { PrismaHouseholdStateRepository } from './household-state.repository.js';
@@ -41,6 +43,11 @@ import { APP_ENV, PrismaService } from './prisma.service.js';
       useFactory: (prisma: PrismaService) => new PrismaHouseholdDirectory(prisma),
       inject: [PrismaService],
     },
+    {
+      provide: BRIEF_DELIVERY_LOG,
+      useFactory: (prisma: PrismaService) => new PrismaBriefDeliveryLog(prisma),
+      inject: [PrismaService],
+    },
   ],
   exports: [
     APP_ENV,
@@ -50,6 +57,7 @@ import { APP_ENV, PrismaService } from './prisma.service.js';
     HOUSEHOLD_READER,
     FEEDING_HISTORY,
     HOUSEHOLD_DIRECTORY,
+    BRIEF_DELIVERY_LOG,
   ],
 })
 export class PersistenceModule {}

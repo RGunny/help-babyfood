@@ -1,4 +1,5 @@
 import { AlertSettingsService } from '../../../src/application/alert-settings.service.js';
+import { DailyBriefService } from '../../../src/application/daily-brief.service.js';
 import { ForecastService } from '../../../src/application/forecast.service.js';
 import { IngredientService } from '../../../src/application/ingredient.service.js';
 import { MealPlanImportService } from '../../../src/application/meal-plan-import.service.js';
@@ -64,6 +65,7 @@ export interface TestServices {
   readonly forecast: ForecastService;
   readonly rules: RulesService;
   readonly alertSettings: AlertSettingsService;
+  readonly dailyBrief: DailyBriefService;
 }
 
 export function buildServices(now: LocalDateTime, lookbackDays = 90): TestServices {
@@ -94,6 +96,7 @@ export function buildServices(now: LocalDateTime, lookbackDays = 90): TestServic
     forecast: new ForecastService(writer),
     rules: new RulesService(writer, writer),
     alertSettings: new AlertSettingsService(writer, writer),
+    dailyBrief: new DailyBriefService(writer, history, clock),
   };
 }
 
