@@ -25,6 +25,7 @@ const EXPECTED_TOOLS = [
   'update_meal_planning_rules',
   'record_feeding_reaction',
   'get_ingredient_introduction_status',
+  'get_daily_brief',
   'forecast_shortage',
   'get_alert_settings',
   'update_alert_settings',

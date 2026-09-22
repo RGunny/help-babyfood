@@ -10,6 +10,7 @@ import {
 } from '@nestjs/common';
 import { AlertSettingsService } from '../application/alert-settings.service.js';
 import { ApplicationModule } from '../application/application.module.js';
+import { DailyBriefService } from '../application/daily-brief.service.js';
 import { ForecastService } from '../application/forecast.service.js';
 import { IngredientService } from '../application/ingredient.service.js';
 import { MealPlanImportService } from '../application/meal-plan-import.service.js';
@@ -47,6 +48,7 @@ const providers: Provider[] = [
       rules: RulesService,
       reaction: ReactionService,
       forecast: ForecastService,
+      dailyBrief: DailyBriefService,
       alertSettings: AlertSettingsService,
       ingredient: IngredientService,
       menu: MenuService,
@@ -60,6 +62,7 @@ const providers: Provider[] = [
       rules,
       reaction,
       forecast,
+      dailyBrief,
       alertSettings,
       ingredient,
       menu,
@@ -74,6 +77,7 @@ const providers: Provider[] = [
       RulesService,
       ReactionService,
       ForecastService,
+      DailyBriefService,
       AlertSettingsService,
       IngredientService,
       MenuService,

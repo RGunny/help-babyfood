@@ -6,8 +6,83 @@ import { ToolDeps } from '../server.factory.js';
 import { toolResult } from '../tool-result.js';
 import { dateString, idempotencyKey, timeString } from './schemas.js';
 
-/** 소진 예측과 알람 설정. 브리프 자체를 만드는 것은 4단계(스케줄러)의 몫이다. */
+/** 브리프와 소진 예측, 알람 설정. */
 export function registerAlertTools(server: McpServer, deps: ToolDeps, caller: Caller): void {
+  server.registerTool(
+    'get_daily_brief',
+    {
+      title: '데일리 브리프',
+      description:
+        '오늘 날짜와 일차, 끼니별 식단, 새 재료 관찰 안내, 재고현황과 소진 예상일, 부족 예측, 임계개수와 임계일 알람, 확인 필요 항목을 한 번에 돌려준다. 저장된 브리프를 읽는 것이 아니라 부를 때마다 계산한다.',
+      inputSchema: z.object({}),
+    },
+    async () =>
+      await toolResult(async () => {
+        const brief = await deps.dailyBrief.get(caller.householdId);
+        return {
+          date: brief.date,
+          dayNumber: brief.dayNumber,
+          slots: brief.slots,
+          newIngredients: brief.newIngredients.map((entry) => ({
+            ingredientName: entry.name,
+            slot: entry.slot,
+            exposureNumber: entry.exposureNumber,
+          })),
+          stock: brief.stock.map((row) => ({
+            ingredientName: row.name,
+            total: row.total,
+            fresh: row.fresh,
+            pendingDiscard: row.pendingDiscard,
+            weightMismatched: row.weightMismatched,
+            depletionDate: row.depletionDate,
+          })),
+          shortages: brief.shortages.map((shortage) => ({
+            ingredientName: shortage.name,
+            plannedCubes: shortage.plannedCubes,
+            firstShortageDate: shortage.firstShortageDate,
+            shortfallCubes: shortage.shortfallCubes,
+          })),
+          thresholdAlerts: brief.thresholdAlerts.map((alert) => ({
+            ingredientName: alert.name,
+            total: alert.total,
+            thresholdCubes: alert.thresholdCubes,
+          })),
+          expiryAlerts: brief.expiryAlerts.map((alert) => ({
+            batchId: alert.batchId,
+            ingredientName: alert.name,
+            cookedOn: alert.cookedOn,
+            expiryDate: alert.expiryDate,
+            remaining: alert.remaining,
+            expiry: alert.stage,
+          })),
+          needsAttention: {
+            heldDeductions: brief.attention.heldDeductions.map((held) => ({
+              ingredientName: held.name,
+              cubes: held.cubes,
+              date: held.date,
+              slot: held.slot,
+            })),
+            unrecordedReactions: brief.attention.unrecordedReactions.map((unrecorded) => ({
+              ingredientName: unrecorded.name,
+              date: unrecorded.date,
+              slot: unrecorded.slot,
+            })),
+            ruleWarnings: brief.attention.ruleWarnings,
+            weightMismatchedBatches: brief.attention.weightMismatchedBatches.map((batch) => ({
+              batchId: batch.batchId,
+              ingredientName: batch.name,
+              cookedOn: batch.cookedOn,
+              remaining: batch.remaining,
+              cubeWeightGram: batch.cubeWeightGram,
+              servingWeightGram: batch.servingWeightGram,
+            })),
+            planRunwayDays: brief.attention.planRunwayDays,
+            planRunwayShort: brief.attention.planRunwayShort,
+          },
+        };
+      }),
+  );
+
   server.registerTool(
     'forecast_shortage',
     {

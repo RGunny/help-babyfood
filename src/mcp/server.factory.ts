@@ -1,5 +1,6 @@
 import { McpServer } from '@modelcontextprotocol/server';
 import { AlertSettingsService } from '../application/alert-settings.service.js';
+import { DailyBriefService } from '../application/daily-brief.service.js';
 import { ForecastService } from '../application/forecast.service.js';
 import { IngredientService } from '../application/ingredient.service.js';
 import { MealPlanImportService } from '../application/meal-plan-import.service.js';
@@ -39,6 +40,7 @@ export interface ToolDeps {
   readonly rules: RulesService;
   readonly reaction: ReactionService;
   readonly forecast: ForecastService;
+  readonly dailyBrief: DailyBriefService;
   readonly alertSettings: AlertSettingsService;
   readonly ingredient: IngredientService;
   readonly menu: MenuService;
