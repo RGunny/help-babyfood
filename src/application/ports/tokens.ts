@@ -8,3 +8,5 @@ export const HOUSEHOLD_READER = Symbol('HouseholdReader');
 export const CLOCK = Symbol('ClockPort');
 export const FEEDING_HISTORY = Symbol('FeedingHistoryPort');
 export const HOUSEHOLD_DIRECTORY = Symbol('HouseholdDirectoryPort');
+export const BRIEF_DELIVERY = Symbol('BriefDeliveryPort');
+export const BRIEF_DELIVERY_LOG = Symbol('BriefDeliveryLogPort');
