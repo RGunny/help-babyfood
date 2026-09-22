@@ -21,7 +21,7 @@ export class SeoulClock implements ClockPort {
     hourCycle: 'h23',
   });
 
-  constructor(private readonly instant: () => Date = () => new Date()) {}
+  constructor(private readonly clock: () => Date = () => new Date()) {}
 
   now(): LocalDateTime {
     const parts = new Map(
@@ -37,11 +37,18 @@ export class SeoulClock implements ClockPort {
   today(): LocalDate {
     return this.now().date;
   }
+
+  instant(): Date {
+    return this.clock();
+  }
 }
 
 /** A clock pinned to one instant. Used by tests and by any run that must see a single "now". */
 export class FixedClock implements ClockPort {
-  constructor(private readonly fixed: LocalDateTime) {}
+  constructor(
+    private readonly fixed: LocalDateTime,
+    private readonly fixedInstant: Date = new Date(`${fixed.date}T${fixed.time}:00+09:00`),
+  ) {}
 
   now(): LocalDateTime {
     return this.fixed;
@@ -49,5 +56,9 @@ export class FixedClock implements ClockPort {
 
   today(): LocalDate {
     return this.fixed.date;
+  }
+
+  instant(): Date {
+    return this.fixedInstant;
   }
 }

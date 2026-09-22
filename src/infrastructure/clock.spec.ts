@@ -40,6 +40,11 @@ describe('Asia/Seoul 시계', () => {
     const clock = new SeoulClock(() => new Date('2026-09-21T15:00:00Z'));
     expect(clock.today()).toBe(clock.now().date);
   });
+
+  it('instant는 시간대를 거치지 않은 인스턴트 그대로다', () => {
+    const moment = new Date('2026-09-21T15:00:00Z');
+    expect(new SeoulClock(() => moment).instant()).toBe(moment);
+  });
 });
 
 describe('고정 시계', () => {
@@ -48,5 +53,10 @@ describe('고정 시계', () => {
     const clock = new FixedClock(fixed);
     expect(clock.now()).toEqual(fixed);
     expect(clock.today()).toBe(localDate('2026-08-17'));
+  });
+
+  it('인스턴트는 그 벽시계 값을 서울 기준으로 읽은 것이다', () => {
+    const clock = new FixedClock({ date: localDate('2026-08-17'), time: localTime('10:00') });
+    expect(clock.instant().toISOString()).toBe('2026-08-17T01:00:00.000Z');
   });
 });

@@ -37,7 +37,13 @@ const SERVICES = [
 async function bootApplicationModule() {
   const moduleRef = await Test.createTestingModule({ imports: [ApplicationModule] })
     .overrideProvider(APP_ENV)
-    .useValue({ databaseUrl: testDatabaseUrl(), lookbackDays: 90, databasePoolSize: 5 } satisfies AppEnv)
+    .useValue({
+      databaseUrl: testDatabaseUrl(),
+      lookbackDays: 90,
+      databasePoolSize: 5,
+      mcpAllowedHosts: ['localhost'],
+      mcpAllowedOrigins: ['localhost'],
+    } satisfies AppEnv)
     .compile();
   await moduleRef.init();
   return moduleRef;

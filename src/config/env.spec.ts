@@ -8,6 +8,8 @@ describe('환경 변수 읽기', () => {
       databaseUrl: DATABASE_URL,
       lookbackDays: 90,
       databasePoolSize: 10,
+      mcpAllowedHosts: ['localhost', '127.0.0.1', '[::1]'],
+      mcpAllowedOrigins: ['localhost', '127.0.0.1', '[::1]'],
     });
   });
 
@@ -34,5 +36,32 @@ describe('환경 변수 읽기', () => {
   it('풀 크기도 같은 규칙으로 읽는다', () => {
     expect(readEnv({ DATABASE_URL, DATABASE_POOL_SIZE: '20' }).databasePoolSize).toBe(20);
     expect(() => readEnv({ DATABASE_URL, DATABASE_POOL_SIZE: '0' })).toThrow(/DATABASE_POOL_SIZE/);
+  });
+
+  it('허용 호스트는 쉼표로 나누고 공백을 떼어 낸다', () => {
+    expect(
+      readEnv({ DATABASE_URL, MCP_ALLOWED_HOSTS: 'babyfood.up.railway.app , localhost' })
+        .mcpAllowedHosts,
+    ).toEqual(['babyfood.up.railway.app', 'localhost']);
+  });
+
+  it('허용 호스트를 지정하지 않으면 localhost만 허용한다', () => {
+    expect(readEnv({ DATABASE_URL, MCP_ALLOWED_HOSTS: '' }).mcpAllowedHosts).toEqual([
+      'localhost',
+      '127.0.0.1',
+      '[::1]',
+    ]);
+  });
+
+  it('쉼표만 있어 호스트가 하나도 남지 않으면 거부한다', () => {
+    expect(() => readEnv({ DATABASE_URL, MCP_ALLOWED_HOSTS: ' , , ' })).toThrow(
+      /MCP_ALLOWED_HOSTS/,
+    );
+  });
+
+  it('허용 Origin도 같은 규칙으로 읽는다', () => {
+    expect(readEnv({ DATABASE_URL, MCP_ALLOWED_ORIGINS: 'claude.ai' }).mcpAllowedOrigins).toEqual([
+      'claude.ai',
+    ]);
   });
 });

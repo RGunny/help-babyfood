@@ -14,14 +14,45 @@ export interface AppEnv {
    */
   readonly lookbackDays: number;
   readonly databasePoolSize: number;
+  /**
+   * Hostnames the MCP endpoint answers, without scheme or port. A request whose `Host` does not
+   * match gets 403 before anything reads the token: that is what stops a page from resolving its
+   * own domain to this server and speaking to it as if it were same-origin.
+   */
+  readonly mcpAllowedHosts: readonly string[];
+  /** Hostnames allowed in a browser's `Origin` header. A request without one always passes. */
+  readonly mcpAllowedOrigins: readonly string[];
 }
+
+const LOCALHOST = ['localhost', '127.0.0.1', '[::1]'];
 
 export function readEnv(source: NodeJS.ProcessEnv = process.env): AppEnv {
   return {
     databaseUrl: required(source, 'DATABASE_URL'),
     lookbackDays: positiveInteger(source, 'LOOKBACK_DAYS', 90),
     databasePoolSize: positiveInteger(source, 'DATABASE_POOL_SIZE', 10),
+    mcpAllowedHosts: hostList(source, 'MCP_ALLOWED_HOSTS'),
+    mcpAllowedOrigins: hostList(source, 'MCP_ALLOWED_ORIGINS'),
   };
+}
+
+/**
+ * Comma-separated hostnames, defaulting to localhost only.
+ *
+ * The default is the safe one: a deployment that forgets to name its hostname refuses every
+ * request rather than answering all of them.
+ */
+function hostList(source: NodeJS.ProcessEnv, name: string): readonly string[] {
+  const raw = source[name];
+  if (raw === undefined || raw.trim() === '') return LOCALHOST;
+  const hosts = raw
+    .split(',')
+    .map((host) => host.trim())
+    .filter((host) => host !== '');
+  if (hosts.length === 0) {
+    throw new Error(`환경 변수 ${name}에 호스트 이름이 없습니다: ${raw}`);
+  }
+  return hosts;
 }
 
 function required(source: NodeJS.ProcessEnv, name: string): string {

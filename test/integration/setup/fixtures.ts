@@ -36,6 +36,11 @@ export class MutableClock implements ClockPort {
   today(): LocalDate {
     return this.current.date;
   }
+
+  /** The same wall-clock reading as an instant, so token expiry moves with `set`. */
+  instant(): Date {
+    return new Date(`${this.current.date}T${this.current.time}:00+09:00`);
+  }
 }
 
 export const at = (date: string, time: string): LocalDateTime => ({
@@ -66,6 +71,8 @@ export function buildServices(now: LocalDateTime, lookbackDays = 90): TestServic
     databaseUrl: testDatabaseUrl(),
     lookbackDays,
     databasePoolSize: 5,
+    mcpAllowedHosts: ['localhost'],
+    mcpAllowedOrigins: ['localhost'],
   }) as PrismaService;
   const clock = new MutableClock(now);
   const writer = new PrismaHouseholdWriter(prisma, new PrismaHouseholdStateRepository(lookbackDays), clock);
