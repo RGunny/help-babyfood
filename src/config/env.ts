@@ -37,6 +37,13 @@ export interface AppEnv {
    * then fail every attempt, and the failure would only show in the delivery log.
    */
   readonly slackBotToken: string;
+  /**
+   * The signing secret that button responses from Slack are verified with.
+   *
+   * Required for the same reason as the bot token: without it every tap is rejected with 401, and
+   * the parent only sees Slack's generic error on the phone.
+   */
+  readonly slackSigningSecret: string;
 }
 
 const LOCALHOST = ['localhost', '127.0.0.1', '[::1]'];
@@ -50,6 +57,7 @@ export function readEnv(source: NodeJS.ProcessEnv = process.env): AppEnv {
     mcpAllowedOrigins: hostList(source, 'MCP_ALLOWED_ORIGINS'),
     schedulerEnabled: flag(source, 'SCHEDULER_ENABLED', true),
     slackBotToken: required(source, 'SLACK_BOT_TOKEN'),
+    slackSigningSecret: required(source, 'SLACK_SIGNING_SECRET'),
   };
 }
 

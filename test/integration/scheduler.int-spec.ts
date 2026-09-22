@@ -174,6 +174,7 @@ async function bootApp(schedulerEnabled: boolean) {
       mcpAllowedOrigins: ['localhost'],
       schedulerEnabled,
       slackBotToken: 'xoxb-test',
+      slackSigningSecret: 'signing-secret-test',
     } satisfies AppEnv)
     .compile();
   await moduleRef.init();

@@ -38,6 +38,7 @@ export async function startMcpServer(clock: MutableClock): Promise<McpTestServer
       // 원장을 세는 단정이 실행 시점에 따라 달라진다. 스케줄러 자체는 자기 테스트에서 돈다.
       schedulerEnabled: false,
       slackBotToken: 'xoxb-test',
+      slackSigningSecret: 'signing-secret-test',
     } satisfies AppEnv)
     .overrideProvider(CLOCK)
     .useValue(clock satisfies ClockPort)
