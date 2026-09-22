@@ -71,10 +71,8 @@
     {
       "phase": 7,
       "name": "break-it",
-      "status": "error",
-      "requiresDocker": true,
-      "started_at": "2026-09-23T02:23:14+0900",
-      "error_message": "All AC commands pass (src/test/prisma clean, pnpm test 391 passed, test:int 338 passed, test:cov 729 passed). But break #3 was NOT caught by the named test: with idempotencyKeyOf reduced to slack:{ts}:{action_id}, test/integration/slack-interactions.int-spec.ts stayed 'Tests 12 passed (12)' because its two discard taps use distinct action_ids (discard.0, discard.1), as render-brief.ts also does. Real collisions are reaction.0 across ingredients in one reaction prompt and no_feed.0 across morning/afternoon in one brief. Unit tests do catch it (action-dispatch.spec.ts, 5 failed). A new integration test that catches it (fails with '같은 멱등키에 다른 요청이 왔습니다: slack:1755392400.000300:reaction.0', passes on HEAD) was verified and then reverted, because this phase forbids final changes to test/ (AC 1) while also requiring the test to be fixed. A human must decide whether to add it; the diff is in tasks/1-slack-and-deploy/break-it.md section 3."
+      "status": "pending",
+      "requiresDocker": true
     }
   ]
 }
