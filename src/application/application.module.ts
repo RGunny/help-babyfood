@@ -1,6 +1,7 @@
 import { Module, Provider } from '@nestjs/common';
 import { PersistenceModule } from '../infrastructure/prisma/persistence.module.js';
 import { AlertSettingsService } from './alert-settings.service.js';
+import { DailyBriefService } from './daily-brief.service.js';
 import { ForecastService } from './forecast.service.js';
 import { IngredientService } from './ingredient.service.js';
 import { MealPlanImportService } from './meal-plan-import.service.js';
@@ -10,8 +11,15 @@ import { MenuService } from './menu.service.js';
 import { NoFeedService } from './no-feed.service.js';
 import { ClockPort } from './ports/clock.port.js';
 import { FeedingHistoryPort } from './ports/feeding-history.port.js';
+import { HouseholdDirectoryPort } from './ports/household-directory.port.js';
 import { HouseholdReader, HouseholdWriter } from './ports/household-write.port.js';
-import { CLOCK, FEEDING_HISTORY, HOUSEHOLD_READER, HOUSEHOLD_WRITER } from './ports/tokens.js';
+import {
+  CLOCK,
+  FEEDING_HISTORY,
+  HOUSEHOLD_DIRECTORY,
+  HOUSEHOLD_READER,
+  HOUSEHOLD_WRITER,
+} from './ports/tokens.js';
 import { ReactionService } from './reaction.service.js';
 import { ReconcileService } from './reconcile.service.js';
 import { RulesService } from './rules.service.js';
@@ -28,8 +36,9 @@ const providers: Provider[] = [
   },
   {
     provide: ReconcileService,
-    useFactory: (writer: HouseholdWriter) => new ReconcileService(writer),
-    inject: [HOUSEHOLD_WRITER],
+    useFactory: (writer: HouseholdWriter, directory: HouseholdDirectoryPort) =>
+      new ReconcileService(writer, directory),
+    inject: [HOUSEHOLD_WRITER, HOUSEHOLD_DIRECTORY],
   },
   {
     provide: NoFeedService,
@@ -85,6 +94,12 @@ const providers: Provider[] = [
       new AlertSettingsService(writer, reader),
     inject: [HOUSEHOLD_WRITER, HOUSEHOLD_READER],
   },
+  {
+    provide: DailyBriefService,
+    useFactory: (reader: HouseholdReader, history: FeedingHistoryPort, clock: ClockPort) =>
+      new DailyBriefService(reader, history, clock),
+    inject: [HOUSEHOLD_READER, FEEDING_HISTORY, CLOCK],
+  },
 ];
 
 /** The use cases. MCP tools, the scheduler and Slack handlers all come through here. */
@@ -104,6 +119,7 @@ const providers: Provider[] = [
     ForecastService,
     RulesService,
     AlertSettingsService,
+    DailyBriefService,
   ],
 })
 export class ApplicationModule {}

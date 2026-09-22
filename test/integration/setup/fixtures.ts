@@ -15,6 +15,7 @@ import { StockService } from '../../../src/application/stock.service.js';
 import { LocalDate, localDate } from '../../../src/domain/shared/local-date.js';
 import { LocalDateTime, localTime } from '../../../src/domain/shared/local-time.js';
 import { PrismaFeedingHistoryRepository } from '../../../src/infrastructure/prisma/feeding-history.repository.js';
+import { PrismaHouseholdDirectory } from '../../../src/infrastructure/prisma/household-directory.repository.js';
 import { PrismaHouseholdStateRepository } from '../../../src/infrastructure/prisma/household-state.repository.js';
 import { PrismaHouseholdWriter } from '../../../src/infrastructure/prisma/household-writer.js';
 import { PrismaService } from '../../../src/infrastructure/prisma/prisma.service.js';
@@ -73,6 +74,7 @@ export function buildServices(now: LocalDateTime, lookbackDays = 90): TestServic
     databasePoolSize: 5,
     mcpAllowedHosts: ['localhost'],
     mcpAllowedOrigins: ['localhost'],
+    schedulerEnabled: false,
   }) as PrismaService;
   const clock = new MutableClock(now);
   const writer = new PrismaHouseholdWriter(prisma, new PrismaHouseholdStateRepository(lookbackDays), clock);
@@ -81,7 +83,7 @@ export function buildServices(now: LocalDateTime, lookbackDays = 90): TestServic
     prisma,
     clock,
     stock: new StockService(writer, writer, clock),
-    reconcile: new ReconcileService(writer),
+    reconcile: new ReconcileService(writer, new PrismaHouseholdDirectory(prisma)),
     noFeed: new NoFeedService(writer),
     mealPlan: new MealPlanService(writer, writer, history),
     mealPlanImport: new MealPlanImportService(writer, writer, history),

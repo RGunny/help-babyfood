@@ -43,6 +43,7 @@ async function bootApplicationModule() {
       databasePoolSize: 5,
       mcpAllowedHosts: ['localhost'],
       mcpAllowedOrigins: ['localhost'],
+      schedulerEnabled: false,
     } satisfies AppEnv)
     .compile();
   await moduleRef.init();

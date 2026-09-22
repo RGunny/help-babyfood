@@ -7,3 +7,4 @@ export const HOUSEHOLD_WRITER = Symbol('HouseholdWriter');
 export const HOUSEHOLD_READER = Symbol('HouseholdReader');
 export const CLOCK = Symbol('ClockPort');
 export const FEEDING_HISTORY = Symbol('FeedingHistoryPort');
+export const HOUSEHOLD_DIRECTORY = Symbol('HouseholdDirectoryPort');

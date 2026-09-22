@@ -34,6 +34,9 @@ export async function startMcpServer(clock: MutableClock): Promise<McpTestServer
       databasePoolSize: 5,
       mcpAllowedHosts: ['localhost', '127.0.0.1', '[::1]'],
       mcpAllowedOrigins: ['localhost', '127.0.0.1', '[::1]'],
+      // 스케줄러는 끈다. 테스트 중간에 정합화가 끼어들면 아직 정산하지 않은 식단이 차감되고,
+      // 원장을 세는 단정이 실행 시점에 따라 달라진다. 스케줄러 자체는 자기 테스트에서 돈다.
+      schedulerEnabled: false,
     } satisfies AppEnv)
     .overrideProvider(CLOCK)
     .useValue(clock satisfies ClockPort)

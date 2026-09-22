@@ -10,6 +10,7 @@ describe('환경 변수 읽기', () => {
       databasePoolSize: 10,
       mcpAllowedHosts: ['localhost', '127.0.0.1', '[::1]'],
       mcpAllowedOrigins: ['localhost', '127.0.0.1', '[::1]'],
+      schedulerEnabled: true,
     });
   });
 
@@ -57,6 +58,16 @@ describe('환경 변수 읽기', () => {
     expect(() => readEnv({ DATABASE_URL, MCP_ALLOWED_HOSTS: ' , , ' })).toThrow(
       /MCP_ALLOWED_HOSTS/,
     );
+  });
+
+  it('스케줄러는 끄라고 적었을 때만 꺼진다', () => {
+    expect(readEnv({ DATABASE_URL, SCHEDULER_ENABLED: 'false' }).schedulerEnabled).toBe(false);
+    expect(readEnv({ DATABASE_URL, SCHEDULER_ENABLED: 'TRUE' }).schedulerEnabled).toBe(true);
+    expect(readEnv({ DATABASE_URL, SCHEDULER_ENABLED: '' }).schedulerEnabled).toBe(true);
+  });
+
+  it.each(['0', 'no', 'off'])('SCHEDULER_ENABLED가 "%s"이면 거부한다', (value) => {
+    expect(() => readEnv({ DATABASE_URL, SCHEDULER_ENABLED: value })).toThrow(/SCHEDULER_ENABLED/);
   });
 
   it('허용 Origin도 같은 규칙으로 읽는다', () => {

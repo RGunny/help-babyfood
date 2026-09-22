@@ -22,6 +22,14 @@ export interface AppEnv {
   readonly mcpAllowedHosts: readonly string[];
   /** Hostnames allowed in a browser's `Origin` header. A request without one always passes. */
   readonly mcpAllowedOrigins: readonly string[];
+  /**
+   * Whether this process registers the periodic reconciliation.
+   *
+   * On by default: a deployment that forgets it would stop deducting cubes, and nothing about that
+   * is visible from the outside. Tests that assert the ledger turn it off, because a sweep landing
+   * in the middle of a test would settle meals the test had not settled yet.
+   */
+  readonly schedulerEnabled: boolean;
 }
 
 const LOCALHOST = ['localhost', '127.0.0.1', '[::1]'];
@@ -33,7 +41,19 @@ export function readEnv(source: NodeJS.ProcessEnv = process.env): AppEnv {
     databasePoolSize: positiveInteger(source, 'DATABASE_POOL_SIZE', 10),
     mcpAllowedHosts: hostList(source, 'MCP_ALLOWED_HOSTS'),
     mcpAllowedOrigins: hostList(source, 'MCP_ALLOWED_ORIGINS'),
+    schedulerEnabled: flag(source, 'SCHEDULER_ENABLED', true),
   };
+}
+
+/** Only `true` and `false` are accepted: a typo must not quietly turn the scheduler off. */
+function flag(source: NodeJS.ProcessEnv, name: string, fallback: boolean): boolean {
+  const raw = source[name];
+  if (raw === undefined || raw.trim() === '') return fallback;
+  const value = raw.trim().toLowerCase();
+  if (value !== 'true' && value !== 'false') {
+    throw new Error(`환경 변수 ${name}은 true 또는 false여야 합니다: ${raw}`);
+  }
+  return value === 'true';
 }
 
 /**

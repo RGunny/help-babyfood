@@ -3,12 +3,14 @@ import { ClockPort } from '../../application/ports/clock.port.js';
 import {
   CLOCK,
   FEEDING_HISTORY,
+  HOUSEHOLD_DIRECTORY,
   HOUSEHOLD_READER,
   HOUSEHOLD_WRITER,
 } from '../../application/ports/tokens.js';
 import { AppEnv, readEnv } from '../../config/env.js';
 import { SeoulClock } from '../clock.js';
 import { PrismaFeedingHistoryRepository } from './feeding-history.repository.js';
+import { PrismaHouseholdDirectory } from './household-directory.repository.js';
 import { PrismaHouseholdStateRepository } from './household-state.repository.js';
 import { PrismaHouseholdWriter } from './household-writer.js';
 import { APP_ENV, PrismaService } from './prisma.service.js';
@@ -34,7 +36,20 @@ import { APP_ENV, PrismaService } from './prisma.service.js';
       useFactory: (prisma: PrismaService) => new PrismaFeedingHistoryRepository(prisma),
       inject: [PrismaService],
     },
+    {
+      provide: HOUSEHOLD_DIRECTORY,
+      useFactory: (prisma: PrismaService) => new PrismaHouseholdDirectory(prisma),
+      inject: [PrismaService],
+    },
   ],
-  exports: [APP_ENV, PrismaService, CLOCK, HOUSEHOLD_WRITER, HOUSEHOLD_READER, FEEDING_HISTORY],
+  exports: [
+    APP_ENV,
+    PrismaService,
+    CLOCK,
+    HOUSEHOLD_WRITER,
+    HOUSEHOLD_READER,
+    FEEDING_HISTORY,
+    HOUSEHOLD_DIRECTORY,
+  ],
 })
 export class PersistenceModule {}

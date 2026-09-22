@@ -1,5 +1,6 @@
 import { HeldDeduction, reconcileMeals } from '../domain/deduction/reconcile.js';
 import { toReconcileInput } from './household-state.js';
+import { HouseholdDirectoryPort } from './ports/household-directory.port.js';
 import { Actor, HouseholdWriteContext, HouseholdWriter } from './ports/household-write.port.js';
 
 export interface ReconcileReport {
@@ -12,10 +13,18 @@ export interface ReconcileReport {
   readonly held: readonly HeldDeduction[];
 }
 
+/** What one household's turn in a sweep came to. A failure is a result, not an exception. */
+export type ReconcileOutcome =
+  | { readonly kind: 'reconciled'; readonly householdId: string; readonly report: ReconcileReport }
+  | { readonly kind: 'failed'; readonly householdId: string; readonly error: unknown };
+
 export const SCHEDULER: Actor = { kind: 'scheduler' };
 
 export class ReconcileService {
-  constructor(private readonly writer: HouseholdWriter) {}
+  constructor(
+    private readonly writer: HouseholdWriter,
+    private readonly directory: HouseholdDirectoryPort,
+  ) {}
 
   /**
    * Brings meals and the ledger in line with the one rule: a meal whose computed date and meal
@@ -27,6 +36,27 @@ export class ReconcileService {
       { householdId, actor, operation: 'reconcile' },
       async (context) => await reconcile(context),
     );
+  }
+
+  /**
+   * Every household, one transaction each. This is what the scheduler calls.
+   *
+   * Sequential on purpose. Each household's turn holds a transaction, and firing them together
+   * would let one sweep take the whole connection pool while the MCP endpoint is answering.
+   *
+   * A household that throws is reported and the sweep goes on. Reconciliation carries nothing over
+   * between runs, so the next tick retries the failed household with no repair step in between.
+   */
+  async runEveryHousehold(): Promise<ReconcileOutcome[]> {
+    const outcomes: ReconcileOutcome[] = [];
+    for (const householdId of await this.directory.listIds()) {
+      try {
+        outcomes.push({ kind: 'reconciled', householdId, report: await this.run(householdId) });
+      } catch (error) {
+        outcomes.push({ kind: 'failed', householdId, error });
+      }
+    }
+    return outcomes;
   }
 }
 
