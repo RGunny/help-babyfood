@@ -49,7 +49,8 @@
       "name": "scheduler",
       "status": "completed",
       "requiresDocker": true,
-      "started_at": "2026-09-23T02:08:16+0900"
+      "started_at": "2026-09-23T02:08:16+0900",
+      "completed_at": "2026-09-23T02:10:40+0900"
     },
     {
       "phase": 5,
