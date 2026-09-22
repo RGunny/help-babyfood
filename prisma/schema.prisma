@@ -4,6 +4,10 @@
 // Prisma 스키마 언어에 없는 것은 마이그레이션 SQL에 손으로 덧붙인다.
 //   - CHECK 제약 (원장 부호, 수량 하한, 시각 형식, 재료 쌍 정규화, 수행자)
 //   - 부분 인덱스 (대표 이름 유일성, 잔여가 있는 배치)
+//
+// UNIQUE와 FK는 이 목록에 속하지 않는다. 스키마 언어로 표현할 수 있으므로 여기에 선언해야 하고,
+// 마이그레이션 SQL에만 두면 Prisma가 "스키마에 없는 제약"으로 보고 지우는 마이그레이션을 낸다.
+// `pnpm db:drift`가 그 어긋남을 잡는다.
 
 generator client {
   provider            = "prisma-client"
@@ -135,6 +139,8 @@ model Member {
   meals            Meal[]
   tokens           MemberToken[]
 
+  /// member_token의 복합 FK가 참조하는 대상. 이름은 마이그레이션이 만든 것을 그대로 쓴다.
+  @@unique([id, householdId], map: "member_id_household_id_key")
   @@index([householdId])
   @@map("member")
 }
@@ -157,7 +163,10 @@ model MemberToken {
   createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
 
   household Household @relation(fields: [householdId], references: [id])
-  member    Member    @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  // 토큰이 가리키는 구성원은 토큰이 가리키는 가정의 구성원이어야 한다. 어긋나면 한 가정의
+  // 토큰으로 다른 가정을 쓰게 되고, 원장의 수행자도 남의 가정 사람이 된다. 그래서 FK가
+  // member_id 하나가 아니라 (member_id, household_id) 쌍을 참조한다.
+  member    Member    @relation(fields: [memberId, householdId], references: [id, householdId], onDelete: Cascade, map: "member_token_member_household_fkey")
 
   @@index([householdId])
   @@index([memberId])

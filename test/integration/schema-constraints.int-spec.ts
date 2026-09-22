@@ -218,3 +218,41 @@ describe('식단 규칙', () => {
     ).rejects.toThrow(/forbidden_pairing_order/);
   });
 });
+
+describe('구성원 토큰의 가정 일치', () => {
+  const constraintExists = async (name: string) =>
+    (
+      await prisma.$queryRaw<{ conname: string }[]>`
+        SELECT conname FROM pg_constraint WHERE conname = ${name}
+      `
+    ).length === 1;
+
+  it('토큰의 구성원과 가정을 한 쌍으로 묶는 FK가 있다', async () => {
+    expect(await constraintExists('member_token_member_household_fkey')).toBe(true);
+  });
+
+  it('복합 FK가 참조하는 구성원의 (id, 가정) 유니크가 있다', async () => {
+    expect(await constraintExists('member_id_household_id_key')).toBe(true);
+  });
+
+  it('다른 가정의 구성원으로 토큰을 만들면 거부한다', async () => {
+    const { id: ours } = await household();
+    const { id: theirs } = await household();
+    await prisma.member.create({ data: { householdId: ours, name: '엄마' } });
+    const { id: stranger } = await prisma.member.create({
+      data: { householdId: theirs, name: '아빠' },
+      select: { id: true },
+    });
+    await expect(
+      prisma.memberToken.create({
+        data: {
+          householdId: ours,
+          memberId: stranger,
+          tokenHash: 'a'.repeat(64),
+          label: '엄마 노트북',
+          expiresAt: new Date('2027-03-01T00:00:00Z'),
+        },
+      }),
+    ).rejects.toThrow(/member_token_member_household_fkey/);
+  });
+});
