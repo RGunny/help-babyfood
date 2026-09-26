@@ -97,10 +97,12 @@ pnpm slack-link --list                                                   # 연�
 
 ## 배포
 
-배포 설정은 저장소에 있다. `railway.json`이 빌드를 `Dockerfile`로 정하고, 배포 전에 `preDeployCommand`로 `pnpm db:deploy`를 돌려 마이그레이션을 적용한다. 헬스체크는 `/health`다. Railway 프로젝트와 Postgres를 만들고, PITR을 켜고, 서비스 환경 변수를 넣는 일은 콘솔에서 사람이 한다. 순서와 넣을 값은 `docs/user-intervention.md` 3번에 있다.
+배포 설정은 저장소에 있다. `railway.json`이 빌드를 `Dockerfile`로 정하고, 배포 전에 `preDeployCommand`로 `pnpm db:deploy`를 돌려 마이그레이션을 적용한다. 헬스체크는 `/health`다. 다만 2026-09-26 기준으로 Railway 서비스가 이 파일을 읽지 않고 있어서, 마이그레이션은 배포 뒤 손으로 적용한다(`docs/user-intervention.md` 6번). Railway 프로젝트와 Postgres를 만들고, PITR을 켜고, 서비스 환경 변수를 넣는 일은 콘솔에서 사람이 한다. 순서와 넣을 값은 `docs/user-intervention.md` 3번에 있다.
 
 ## 지금 되는 것과 안 되는 것
 
 5단계까지 끝났다(기획안 9장). Claude Code에서 재고와 식단을 관리할 수 있고, 서버가 매분 정합화를 돌려 식단시간이 지난 끼니를 자동으로 차감한다. 같은 tick에서 설정한 시각이 지난 가정의 브리프를 Slack 채널로 보내고, 실패하면 재시도한다. 부모는 브리프와 후속 메시지의 버튼으로 미급여, 반응, 폐기를 응답할 수 있다. 배포 설정도 저장소에 있다.
 
-이것은 코드가 준비됐다는 뜻이지 부모가 지금 Slack으로 브리프를 받는다는 뜻이 아니다. Slack 앱은 아직 만들지 않았고, Railway 프로젝트도 없고, PITR도 켜지 않았고, 엑셀 식단표와 냉동고 재고의 실제 이관도 하지 않았다. 이 일들은 웹 콘솔 로그인이나 실물 확인이 필요해 사람이 한다. 목록은 `docs/user-intervention.md`에 있다. Railway Postgres에서 어느 플랜부터 PITR을 쓸 수 있는지도 아직 모른다(기획안 10장). 그 목록이 끝나기 전까지 브리프는 어디에도 발송되지 않는다.
+2026-09-26부터 운영 중이다. 서버는 Railway의 `help-babyfood-production.up.railway.app`에 떠 있고, 식단과 재고를 이관했으며, 매일 07:30 브리프가 `#help-babyfood` 채널로 간다. 브리프의 재고는 표 한 장으로 보이고, 보낸 메시지는 `slack_message`에 남는다(ADR 0007). 양식을 미리 보려면 운영 컨테이너에서 `railway ssh "node dist/scripts/preview-slack.js --household 재하네"`를 돌린다. 로컬의 `pnpm slack-preview`는 로컬 DB를 읽는다.
+
+아직 남은 것은 `docs/user-intervention.md`의 표에 있다. 버튼 응답은 Slack 사용자 id를 연결한 구성원만 기록된다. 지금은 아빠만 연결되어 있고, 연결되지 않은 사람이 누르면 "등록되지 않은 Slack 사용자입니다"만 돌아온다(7번). PITR은 Railway Pro 플랜에서만 되어 보류 중이다.
