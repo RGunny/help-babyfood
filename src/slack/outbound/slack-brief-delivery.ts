@@ -7,17 +7,16 @@ import { SlackMessage } from '../templates/blocks.js';
 import { dailyBriefTemplate } from '../templates/daily-brief.js';
 import { MessageTemplate } from '../templates/message-template.js';
 import { reactionPromptTemplate } from '../templates/reaction-prompt.js';
+import { SLACK_API_BASE_URL, callSlackApi } from './slack-api.js';
 import { SlackMessageLog } from './slack-message-log.js';
 
-export const SLACK_API_BASE_URL = 'https://slack.com/api';
+export { SLACK_API_BASE_URL };
 
 /** 채널이 연결되지 않은 가정. 재시도로 고쳐지지 않으므로 실패가 아니라 건너뜀이다. */
 export const NOT_LINKED = 'not_linked';
 
 /** The part of a `chat.postMessage` response this reads. Anything else in the body is ignored. */
 interface PostMessageResponse {
-  readonly ok?: unknown;
-  readonly error?: unknown;
   readonly ts?: unknown;
 }
 
@@ -25,10 +24,8 @@ interface PostMessageResponse {
  * Posts the brief and the follow-up to the household's channel with `chat.postMessage`, and keeps
  * what it posted in `slack_message`.
  *
- * Plain `fetch` rather than `@slack/web-api` (ADR 0006), which moves one duty here: Slack answers a
- * failed call with HTTP 200 and `{"ok": false, "error": "..."}`. The HTTP status alone would record
- * `channel_not_found` and `invalid_auth` as sent, so the body's `ok` decides, and anything but
- * `true` throws with Slack's error in the message for the delivery log to keep.
+ * The call itself goes through `callSlackApi`, which is where the `ok: false` judgement of ADR
+ * 0006 lives, so that a failed post throws with Slack's error for the delivery log to keep.
  *
  * The channel id is read from Prisma directly. Looking up an identifier is not a use case (ADR
  * 0004, "층별 결합"), and this reads nothing else from the store.
@@ -102,23 +99,11 @@ export async function postMessage(
   channelId: string,
   message: SlackMessage,
 ): Promise<string> {
-  const response = await fetch(`${baseUrl}/chat.postMessage`, {
-    method: 'POST',
-    headers: {
-      authorization: `Bearer ${botToken}`,
-      'content-type': 'application/json; charset=utf-8',
-    },
-    body: JSON.stringify({ channel: channelId, text: message.text, blocks: message.blocks }),
+  const body = await callSlackApi<PostMessageResponse>(baseUrl, botToken, 'chat.postMessage', {
+    channel: channelId,
+    text: message.text,
+    blocks: message.blocks,
   });
-  if (!response.ok) {
-    throw new Error(`Slack chat.postMessage가 HTTP ${response.status}로 실패했습니다`);
-  }
-
-  const body = (await response.json()) as PostMessageResponse;
-  // HTTP 200이어도 실패일 수 있다. 판정은 본문의 "ok"로 한다.
-  if (body.ok !== true) {
-    throw new Error(`Slack chat.postMessage가 실패했습니다: ${String(body.error ?? 'unknown_error')}`);
-  }
   if (typeof body.ts !== 'string') {
     throw new Error('Slack chat.postMessage 응답에 ts가 없습니다');
   }

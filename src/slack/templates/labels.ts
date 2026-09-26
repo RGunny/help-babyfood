@@ -30,3 +30,10 @@ export function stageLabel(stage: ExpiryStage): string {
 export function shortDate(date: LocalDate): string {
   return date.slice(5);
 }
+
+const WEEKDAY_LABEL = ['일', '월', '화', '수', '목', '금', '토'];
+
+/** `2026-09-26` is `토`. The date is a calendar date, so UTC midnight is the day itself. */
+export function weekdayLabel(date: LocalDate): string {
+  return WEEKDAY_LABEL[new Date(`${date}T00:00:00.000Z`).getUTCDay()];
+}
