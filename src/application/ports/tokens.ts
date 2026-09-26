@@ -10,3 +10,5 @@ export const FEEDING_HISTORY = Symbol('FeedingHistoryPort');
 export const HOUSEHOLD_DIRECTORY = Symbol('HouseholdDirectoryPort');
 export const BRIEF_DELIVERY = Symbol('BriefDeliveryPort');
 export const BRIEF_DELIVERY_LOG = Symbol('BriefDeliveryLogPort');
+export const BOARD_PUBLISHER = Symbol('BoardPublisherPort');
+export const BOARD_SYNC_LOG = Symbol('BoardSyncLogPort');
