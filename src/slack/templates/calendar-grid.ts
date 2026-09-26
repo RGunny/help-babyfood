@@ -4,7 +4,7 @@ import { MealSlot } from '../../domain/shared/meal-slot.js';
 import { SLOT_LABEL, shortDate, weekdayLabel } from './labels.js';
 import { MAX_TABLE_CELLS } from './markdown.js';
 
-/** One ten-day table, laid out the way the spreadsheet was: a column per day, a row per line. */
+/** One week's table, laid out the way the spreadsheet was: a column per day, a row per line. */
 export interface GridBlock {
   readonly number: number;
   /** The corner label, then one header per day. */

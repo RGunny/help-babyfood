@@ -25,9 +25,8 @@ const meal = (toppings: BoardIngredient[], overrides: Partial<BoardMeal> = {}): 
   ...overrides,
 });
 
-/** The migrated household's third and fourth blocks, as the spreadsheet had them around 27일차. */
+/** The migrated household's weeks four to six, as the spreadsheet had them around 27일차. */
 const PLAN: Record<string, BoardMeal | 'no_feed'> = {
-  '2026-09-20': meal([ingredient('소고기'), ingredient('양배추'), ingredient('청경채')], { menuName: '쌀밀가루죽', fed: true }),
   '2026-09-21': meal([ingredient('소고기'), ingredient('브로콜리'), ingredient('당근'), ingredient('땅콩버터', 1)], { fed: true }),
   '2026-09-22': meal([ingredient('소고기'), ingredient('애호박'), ingredient('양배추'), ingredient('땅콩버터', 1)], { fed: true }),
   '2026-09-23': meal([ingredient('소고기'), ingredient('단호박'), ingredient('시금치', 1)], { fed: true }),
@@ -45,10 +44,11 @@ const PLAN: Record<string, BoardMeal | 'no_feed'> = {
   '2026-10-05': meal([ingredient('소고기'), ingredient('감자', 1), ingredient('당근'), ingredient('시금치'), ingredient('밀가루', null, true)]),
 };
 
-function block(number: number, start: string): BoardBlock {
-  let dayNumber = 21 + (number - 3) * 10;
+/** A week from `start` (a Monday). Day numbers run on from `firstDayNumber`, pausing on a no-feed day. */
+function block(number: number, start: string, firstDayNumber: number): BoardBlock {
+  let dayNumber = firstDayNumber;
   const days: BoardDay[] = [];
-  for (let index = 0; index < 10; index += 1) {
+  for (let index = 0; index < 7; index += 1) {
     const date: LocalDate = addDays(localDate(start), index);
     const planned = PLAN[date];
     if (planned === 'no_feed') {
@@ -102,17 +102,17 @@ function board(overrides: Partial<HouseholdBoard> = {}): HouseholdBoard {
     now: { date: TODAY, time: localTime('19:03') },
     brief: BRIEF,
     slots: ['morning'],
-    blocks: [block(3, '2026-09-20'), block(4, '2026-09-30')],
+    blocks: [block(4, '2026-09-21', 22), block(5, '2026-09-28', 28), block(6, '2026-10-05', 35)],
     omittedBlocks: 0,
     ...overrides,
   };
 }
 
 describe('상태판 캔버스', () => {
-  it('두 블록의 달력과 재고, 임계일, 확인 필요를 마크다운으로 낸다', async () => {
+  it('세 주의 달력과 재고, 임계일, 확인 필요를 마크다운으로 낸다', async () => {
     const markdown = householdBoardTemplate.render(board());
 
-    await expect(markdown).toMatchFileSnapshot('./__snapshots__/household-board.v1.md');
+    await expect(markdown).toMatchFileSnapshot('./__snapshots__/household-board.v2.md');
   });
 
   it('오늘 열의 머리만 굵고 ▶가 붙는다', () => {
@@ -130,16 +130,16 @@ describe('상태판 캔버스', () => {
   });
 
   it('버린 블록과 넣지 못한 토핑은 표 곁에 적힌다', () => {
-    const many = Array.from({ length: 30 }, (_, index) => ingredient(`토핑${index}`));
+    const many = Array.from({ length: 40 }, (_, index) => ingredient(`토핑${index}`));
     const crowded: BoardBlock = {
       number: 9,
-      days: block(3, '2026-09-20').days.map((day, index) =>
+      days: block(4, '2026-09-21', 22).days.map((day, index) =>
         index === 0 ? { ...day, slots: [{ slot: 'morning', meal: meal(many), noFeed: null }] } : day,
       ),
     };
     const markdown = householdBoardTemplate.render(board({ blocks: [crowded], omittedBlocks: 2 }));
 
-    expect(markdown).toContain('_오래된 2개 블록은 생략했습니다._');
+    expect(markdown).toContain('_지난 2주는 생략했습니다._');
     expect(markdown).toContain('_토핑 6개는 표에 넣지 못했습니다._');
   });
 
@@ -170,7 +170,7 @@ describe('상태판 캔버스', () => {
   });
 
   it('이름의 | 와 * 는 표와 서식을 깨지 않게 이스케이프된다', () => {
-    const odd = block(3, '2026-09-20');
+    const odd = block(4, '2026-09-21', 22);
     const day = odd.days[0];
     const blocks: BoardBlock[] = [
       { ...odd, days: [{ ...day, slots: [{ slot: 'morning', meal: meal([ingredient('a|b*c')]), noFeed: null }] }, ...odd.days.slice(1)] },

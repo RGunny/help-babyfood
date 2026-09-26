@@ -124,40 +124,45 @@ const toppingMarks = (result: HouseholdBoard, date: string) =>
   morningOf(result, date).meal!.toppings.map((topping) => [topping.name, topping.exposureNumber, topping.reacted]);
 
 describe('상태판의 블록', () => {
-  it('블록은 이유식 시작일부터 10일 단위이고, 7일 전이 속한 블록부터 마지막 예정 식단의 블록까지 보인다', () => {
-    // 시작일 08-31. 09-19(7일 전)는 09-10~09-19인 2번 블록, 마지막 예정 식단 10-04는 4번 블록이다.
+  it('블록은 월요일부터 일요일까지의 주이고, 7일 전이 속한 주부터 마지막 예정 식단의 주까지 보인다', () => {
+    // 시작일 08-31(월)이 1주차다. 09-19(7일 전, 토)는 09-14~09-20인 3주차, 마지막 예정 식단 10-04(일)는 5주차다.
     const result = board();
 
-    expect(result.blocks.map((block) => block.number)).toEqual([2, 3, 4]);
+    expect(result.blocks.map((block) => block.number)).toEqual([3, 4, 5]);
     expect(result.blocks[0].days.map((day) => day.date)).toEqual([
-      '2026-09-10', '2026-09-11', '2026-09-12', '2026-09-13', '2026-09-14',
-      '2026-09-15', '2026-09-16', '2026-09-17', '2026-09-18', '2026-09-19',
+      '2026-09-14', '2026-09-15', '2026-09-16', '2026-09-17', '2026-09-18', '2026-09-19', '2026-09-20',
     ]);
-    expect(result.blocks[2].days.at(-1)?.date).toBe('2026-10-09');
+    expect(result.blocks[2].days.at(-1)?.date).toBe('2026-10-04');
     expect(result.omittedBlocks).toBe(0);
   });
 
-  it('예정 식단이 없으면 오늘이 속한 블록까지만 보인다', () => {
+  it('예정 식단이 없으면 오늘이 속한 주까지만 보인다', () => {
     const result = board({ meals: plainMeals(27, 27) });
 
-    expect(result.blocks.map((block) => block.number)).toEqual([2, 3]);
+    expect(result.blocks.map((block) => block.number)).toEqual([3, 4]);
   });
 
-  it('블록이 여섯을 넘으면 오래된 블록을 버리고 그 수를 센다', () => {
-    // 식단이 100개면 마지막 예정 식단은 12-08(10번 블록)이다. 2~10번 아홉 블록 중 앞 셋을 버린다.
+  it('주가 여섯을 넘으면 오래된 주를 버리고 그 수를 센다', () => {
+    // 식단이 100개면 마지막 예정 식단은 12-08(15주차)이다. 3~15주차 열셋 중 앞 일곱을 버린다.
     const result = board({ meals: plainMeals(100, 27) });
 
     expect(result.blocks).toHaveLength(MAX_BOARD_BLOCKS);
-    expect(result.blocks.map((block) => block.number)).toEqual([5, 6, 7, 8, 9, 10]);
-    expect(result.omittedBlocks).toBe(3);
+    expect(result.blocks.map((block) => block.number)).toEqual([10, 11, 12, 13, 14, 15]);
+    expect(result.omittedBlocks).toBe(7);
   });
 
-  it('이유식이 시작되기 전 날짜는 1번 블록보다 앞으로 가지 않는다', () => {
-    // 오늘이 시작일 이틀 뒤면 7일 전은 시작일보다 앞이다. 그래도 1번 블록에서 시작한다.
-    const result = board({ meals: plainMeals(5, 2), today: '2026-09-02' });
+  it('이유식이 시작되기 전 날짜는 1주차보다 앞으로 가지 않고, 1주차는 시작일이 속한 주의 월요일부터다', () => {
+    // 시작일이 수요일(09-02)이면 1주차는 08-31(월)부터다. 오늘이 시작 이틀 뒤라 7일 전은 그보다 앞이다.
+    const result = board({ schedules: [{ slot: 'morning', startDate: localDate('2026-09-02'), mealTime: localTime('10:00') }], meals: plainMeals(5, 2), today: '2026-09-04' });
 
     expect(result.blocks.map((block) => block.number)).toEqual([1]);
-    expect(result.blocks[0].days[0].date).toBe(START);
+    expect(result.blocks[0].days.map((day) => day.date)).toEqual([
+      '2026-08-31', '2026-09-01', '2026-09-02', '2026-09-03', '2026-09-04', '2026-09-05', '2026-09-06',
+    ]);
+    // 시작일 전의 이틀은 끼니도 일차도 없다.
+    expect(result.blocks[0].days[0].slots).toEqual([]);
+    expect(result.blocks[0].days[0].dayNumber).toBeNull();
+    expect(result.blocks[0].days[2].dayNumber).toBe(1);
   });
 
   it('끼니가 하나도 없으면 블록도 없고 브리프만 있다', () => {
@@ -241,7 +246,7 @@ describe('상태판의 회차', () => {
   });
 
   it('창이 시작되기 전에 이상 없음으로 한 번 먹인 재료는 창 안에서 ②부터 시작한다', () => {
-    // 2번 블록은 09-10부터다. 09-05(6일차)에 완두콩을 먹이고 이상 없음을 기록했다.
+    // 창은 3주차 09-14부터다. 09-05(6일차)에 완두콩을 먹이고 이상 없음을 기록했다.
     const meals = plainMeals(35, 27).map((entry) =>
       entry.order === 6 ? meal({ order: 6, toppings: ['beef', 'pea'], consumed: true }) : entry,
     );

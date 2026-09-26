@@ -12,15 +12,15 @@ import { introductionStatuses, reactedIngredientIds } from './feeding-history.js
 import { HouseholdState } from './household-state.js';
 import { FeedingHistory } from './ports/feeding-history.port.js';
 
-/** One table of the spreadsheet layout is ten days. */
-export const BOARD_BLOCK_DAYS = 10;
-/** The board starts at the block holding this many days ago, so last week stays visible. */
+/** One table of the board is a calendar week, Monday to Sunday. */
+export const BOARD_BLOCK_DAYS = 7;
+/** The board starts at the week holding this many days ago, so last week stays visible. */
 export const BOARD_LOOKBACK_DAYS = 7;
-/** Blocks shown at most. Older ones are dropped and counted. */
+/** Weeks shown at most. Older ones are dropped and counted. */
 export const MAX_BOARD_BLOCKS = 6;
 /**
- * How far back the state has to be loaded: the block holding `today - BOARD_LOOKBACK_DAYS` starts
- * at most `BOARD_BLOCK_DAYS - 1` days before that day.
+ * How far back the state has to be loaded: the Monday of the week holding
+ * `today - BOARD_LOOKBACK_DAYS` is at most six days before that day.
  */
 export const BOARD_LOAD_DAYS = BOARD_LOOKBACK_DAYS + BOARD_BLOCK_DAYS - 1;
 
@@ -62,9 +62,9 @@ export interface BoardDay {
   readonly slots: readonly BoardSlotEntry[];
 }
 
-/** Ten consecutive days, numbered from the feeding start date. */
+/** One week, Monday to Sunday, numbered from the week the baby started solid food. */
 export interface BoardBlock {
-  /** 1-based. Block 1 starts on the feeding start date. */
+  /** "N주차". 1-based; week 1 is the week holding the feeding start date. */
   readonly number: number;
   readonly days: readonly BoardDay[];
 }
@@ -76,12 +76,13 @@ export interface HouseholdBoard {
   /** Slots that have a meal anywhere in the window, in display order. */
   readonly slots: readonly MealSlot[];
   readonly blocks: readonly BoardBlock[];
-  /** Blocks older than the ones shown, dropped to stay within `MAX_BOARD_BLOCKS`. */
+  /** Weeks older than the ones shown, dropped to stay within `MAX_BOARD_BLOCKS`. */
   readonly omittedBlocks: number;
 }
 
 /**
- * The board of ADR 0008: today's brief plus the calendar laid out the way the spreadsheet was.
+ * The board of ADR 0008: today's brief plus the calendar laid out the way the spreadsheet was,
+ * one table per calendar week.
  *
  * Pure, like `buildDailyBrief`. The exposure numbers of every meal in the window come from
  * `projectExposures`, started from the introduction status the history gives at the window start,
@@ -94,16 +95,18 @@ export function buildHouseholdBoard(input: DailyBriefInput): HouseholdBoard {
   if (start === null) return { now, brief, slots: [], blocks: [], omittedBlocks: 0 };
 
   const today = now.date;
+  // 블록은 달력의 주다. 시작일이 속한 주의 월요일이 1주차의 첫 열이다.
+  const origin = mondayOf(start);
   const blockIndexOf = (date: LocalDate): number =>
-    Math.max(0, Math.floor(daysBetween(start, date) / BOARD_BLOCK_DAYS));
+    Math.max(0, Math.floor(daysBetween(origin, date) / BOARD_BLOCK_DAYS));
   const lastPlanned = lastPlannedMealDate(state.meals, state.calendar);
   const lastIndex = blockIndexOf(lastPlanned !== null && lastPlanned > today ? lastPlanned : today);
   const wantedFirst = blockIndexOf(addDays(today, -BOARD_LOOKBACK_DAYS));
   const omittedBlocks = Math.max(0, lastIndex - wantedFirst + 1 - MAX_BOARD_BLOCKS);
   const firstIndex = wantedFirst + omittedBlocks;
 
-  const windowStart = addDays(start, firstIndex * BOARD_BLOCK_DAYS);
-  const windowEnd = addDays(start, (lastIndex + 1) * BOARD_BLOCK_DAYS - 1);
+  const windowStart = addDays(origin, firstIndex * BOARD_BLOCK_DAYS);
+  const windowEnd = addDays(origin, (lastIndex + 1) * BOARD_BLOCK_DAYS - 1);
   const days = projectCalendar(state.meals, state.calendar, windowStart, windowEnd).map((day) => ({
     ...day,
     slots: orderSlots(day.slots),
@@ -140,6 +143,12 @@ export function buildHouseholdBoard(input: DailyBriefInput): HouseholdBoard {
     })),
     omittedBlocks,
   };
+}
+
+/** The Monday on or before the date. A calendar date at UTC midnight has the weekday of the date itself. */
+export function mondayOf(date: LocalDate): LocalDate {
+  const weekday = new Date(`${date}T00:00:00.000Z`).getUTCDay();
+  return addDays(date, -((weekday + 6) % 7));
 }
 
 function orderSlots(entries: readonly CalendarSlotEntry[]): CalendarSlotEntry[] {

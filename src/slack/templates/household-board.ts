@@ -11,7 +11,8 @@ const STOCK_HEADER = ['재료', '합계', '가용', '폐기대기', '소진 예�
 const MAX_STOCK_ROWS = Math.floor(MAX_TABLE_CELLS / STOCK_HEADER.length) - 1;
 
 /**
- * The board of ADR 0008 as canvas markdown: the calendar in the spreadsheet's layout, then the
+ * The board of ADR 0008 as canvas markdown: the calendar in the spreadsheet's layout, one table a
+ * week, then the
  * same stock table, expiry list and attention list the brief carries.
  *
  * Every part is one function returning its lines, joined in reading order. Cell texts come from
@@ -19,7 +20,7 @@ const MAX_STOCK_ROWS = Math.floor(MAX_TABLE_CELLS / STOCK_HEADER.length) - 1;
  */
 export const householdBoardTemplate: CanvasTemplate<HouseholdBoard> = {
   key: 'household_board',
-  version: 1,
+  version: 2,
   render(board) {
     const parts = [
       titleLines(board),
@@ -43,10 +44,10 @@ function calendarLines(board: HouseholdBoard): string[] {
   const grid = calendarGridOf(board);
   if (grid.blocks.length === 0) return [...lines, '등록된 끼니가 없습니다.'];
 
-  if (grid.omittedBlocks > 0) lines.push(`_오래된 ${grid.omittedBlocks}개 블록은 생략했습니다._`);
+  if (grid.omittedBlocks > 0) lines.push(`_지난 ${grid.omittedBlocks}주는 생략했습니다._`);
   for (const block of grid.blocks) {
     const first = board.blocks.find((candidate) => candidate.number === block.number)!.days;
-    lines.push('', heading(3, `${shortDate(first[0].date)} ~ ${shortDate(first.at(-1)!.date)}`), blockTable(block));
+    lines.push('', heading(3, `${block.number}주차 · ${shortDate(first[0].date)} ~ ${shortDate(first.at(-1)!.date)}`), blockTable(block));
     if (block.omittedToppings > 0) lines.push(`_토핑 ${block.omittedToppings}개는 표에 넣지 못했습니다._`);
   }
   return lines;
