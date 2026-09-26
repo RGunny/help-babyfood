@@ -96,7 +96,7 @@ ADR 0007이 `brief_delivery`와 `slack_message`를 나눈 경계를 그대로 �
 
 `skipped`도 `synced_state_at`과 `synced_on`을 전진시킨다. 채널이 없는 가정, 사람이 만든 캔버스가 이미 있어 서버가 만들 수 없는 가정은 그렇지 않으면 매분 다시 잡힌다. 어댑터가 내용 해시가 같아 API를 부르지 않은 경우는 발행 성공과 같다.
 
-`content_hash`는 템플릿 버전과 마크다운을 함께 SHA-256으로 만든 값이다. 해시가 같으면 `canvases.edit`를 부르지 않는다. 레이아웃을 바꿔 버전을 올리면 해시가 달라져 다음 갱신에서 반드시 한 번 편집된다.
+`content_hash`는 템플릿 버전과 마크다운을 함께 SHA-256으로 만든 값이다. 해시가 같으면 `canvases.edit`를 부르지 않는다. 레이아웃을 바꿔 버전을 올리면 해시가 달라져 다음 갱신에서 반드시 한 번 편집된다. 다만 버전은 어댑터만 알고 판정 질의는 상태 시각과 날짜만 보므로, 배포만으로는 갱신이 잡히지 않고 다음 상태 변경이나 자정에 반영된다. 바로 바꾸려면 `pnpm slack-preview --template household_board`를 `--dry-run` 없이 돌린다. 2026-09-26에 주 단위 레이아웃(v2)을 그렇게 올렸다.
 
 Slack 어댑터의 흐름은 다음과 같다. `slack_canvas` 행이 없으면 `conversations.canvases.create`로 만들고 행을 넣는다. `channel_canvas_already_exists`가 오면 사람이 만든 캔버스가 있는 것이므로 `skipped`로 두고, `pnpm slack-link --household 재하네 --canvas F0C4HPW0JP7`로 연결한다. 행이 있으면 `canvases.edit`의 `replace`를 구역 id 없이 불러 문서 전체를 바꾼다.
 
