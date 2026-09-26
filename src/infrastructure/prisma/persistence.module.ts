@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ClockPort } from '../../application/ports/clock.port.js';
 import {
+  BOARD_SYNC_LOG,
   BRIEF_DELIVERY_LOG,
   CLOCK,
   FEEDING_HISTORY,
@@ -10,6 +11,7 @@ import {
 } from '../../application/ports/tokens.js';
 import { AppEnv, readEnv } from '../../config/env.js';
 import { SeoulClock } from '../clock.js';
+import { PrismaBoardSyncLog } from './board-sync-log.repository.js';
 import { PrismaBriefDeliveryLog } from './brief-delivery-log.repository.js';
 import { PrismaFeedingHistoryRepository } from './feeding-history.repository.js';
 import { PrismaHouseholdDirectory } from './household-directory.repository.js';
@@ -48,6 +50,11 @@ import { APP_ENV, PrismaService } from './prisma.service.js';
       useFactory: (prisma: PrismaService) => new PrismaBriefDeliveryLog(prisma),
       inject: [PrismaService],
     },
+    {
+      provide: BOARD_SYNC_LOG,
+      useFactory: (prisma: PrismaService) => new PrismaBoardSyncLog(prisma),
+      inject: [PrismaService],
+    },
   ],
   exports: [
     APP_ENV,
@@ -58,6 +65,7 @@ import { APP_ENV, PrismaService } from './prisma.service.js';
     FEEDING_HISTORY,
     HOUSEHOLD_DIRECTORY,
     BRIEF_DELIVERY_LOG,
+    BOARD_SYNC_LOG,
   ],
 })
 export class PersistenceModule {}

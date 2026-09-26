@@ -62,6 +62,14 @@ export class PrismaHouseholdWriter implements HouseholdWriter, HouseholdReader {
         const context = new PrismaWriteContext(tx, this.repository, request, now);
         const result = await body(context);
         await this.recordResult(tx, request, result);
+        // 실제로 무언가를 쓴 트랜잭션만 상태 시각을 올린다. 차이가 없는 매분 정합화는 여기 오지 않고,
+        // 상태판은 이 시각으로 갱신 여부를 판정한다(ADR 0008). 행은 이미 FOR UPDATE로 잡혀 있다.
+        if (context.changed) {
+          await tx.household.update({
+            where: { id: request.householdId },
+            data: { stateChangedAt: this.clock.instant() },
+          });
+        }
         return result;
       },
       {
@@ -137,6 +145,9 @@ function stableStringify(value: unknown): string {
 }
 
 class PrismaWriteContext implements HouseholdWriteContext {
+  /** Raised by every method below that wrote a row. A call that wrote nothing leaves it alone. */
+  private dirty = false;
+
   constructor(
     private readonly tx: PrismaTransaction,
     private readonly repository: PrismaHouseholdStateRepository,
@@ -146,6 +157,10 @@ class PrismaWriteContext implements HouseholdWriteContext {
 
   get householdId(): string {
     return this.request.householdId;
+  }
+
+  get changed(): boolean {
+    return this.dirty;
   }
 
   async load(scope?: LoadScope): Promise<HouseholdState> {
@@ -159,6 +174,7 @@ class PrismaWriteContext implements HouseholdWriteContext {
    */
   async appendLedgerEntries(entries: readonly LedgerEntry[]): Promise<void> {
     if (entries.length === 0) return;
+    this.dirty = true;
     await this.tx.stockLedgerEntry.createMany({
       data: entries.map((entry) => ({
         householdId: this.householdId,
@@ -186,6 +202,7 @@ class PrismaWriteContext implements HouseholdWriteContext {
   }
 
   async applyMealStatuses(changes: readonly MealStatusChange[]): Promise<void> {
+    if (changes.length > 0) this.dirty = true;
     for (const change of changes) {
       await this.tx.meal.update({
         where: { id: change.mealId },
@@ -195,6 +212,7 @@ class PrismaWriteContext implements HouseholdWriteContext {
   }
 
   async insertCookedBatch(draft: CookedBatchDraft): Promise<CookedBatch> {
+    this.dirty = true;
     const row = await this.tx.cookedBatch.create({
       data: {
         householdId: this.householdId,
@@ -211,6 +229,7 @@ class PrismaWriteContext implements HouseholdWriteContext {
   }
 
   async addNoFeedRecord(record: NoFeedRecord): Promise<void> {
+    this.dirty = true;
     await this.tx.noFeedRecord.create({
       data: {
         householdId: this.householdId,
@@ -224,12 +243,14 @@ class PrismaWriteContext implements HouseholdWriteContext {
   }
 
   async removeNoFeedRecord(slot: MealSlot, date: LocalDate): Promise<void> {
+    this.dirty = true;
     await this.tx.noFeedRecord.delete({
       where: { householdId_date_slot: { householdId: this.householdId, date: fromLocalDate(date), slot } },
     });
   }
 
   async upsertMeal(meal: MealDraft): Promise<Meal> {
+    this.dirty = true;
     const memberId = memberIdOf(this.request.actor);
     const row = await this.tx.meal.upsert({
       where: { householdId_slot_mealOrder: { householdId: this.householdId, slot: meal.slot, mealOrder: meal.order } },
@@ -285,6 +306,7 @@ class PrismaWriteContext implements HouseholdWriteContext {
   }
 
   async recordFeedingReaction(draft: FeedingReactionDraft): Promise<void> {
+    this.dirty = true;
     const memberId = memberIdOf(this.request.actor);
     // 같은 식단·재료를 다시 기록하면 정정이다. UNIQUE(meal_id, ingredient_id)가 그것을 보장한다.
     await this.tx.feedingReaction.upsert({
@@ -302,6 +324,7 @@ class PrismaWriteContext implements HouseholdWriteContext {
   }
 
   async insertIngredient(draft: IngredientDraft): Promise<Ingredient> {
+    this.dirty = true;
     const row = await this.tx.ingredient.create({
       data: {
         householdId: this.householdId,
@@ -333,6 +356,7 @@ class PrismaWriteContext implements HouseholdWriteContext {
   }
 
   async addIngredientAlias(ingredientId: string, alias: string): Promise<void> {
+    this.dirty = true;
     // position은 저장된 라벨에서 센다. 도메인의 aliases 배열 길이로 세면 라벨을 지운 적이
     // 있을 때 (ingredient_id, position) 유니크와 어긋난다.
     const highest = await this.tx.ingredientLabel.aggregate({
@@ -352,10 +376,12 @@ class PrismaWriteContext implements HouseholdWriteContext {
   }
 
   async updateServingWeight(ingredientId: string, servingWeightGram: number): Promise<void> {
+    this.dirty = true;
     await this.tx.ingredient.update({ where: { id: ingredientId }, data: { servingWeightGram } });
   }
 
   async insertMenu(draft: MenuDraft): Promise<Menu> {
+    this.dirty = true;
     const row = await this.tx.menu.create({
       data: {
         householdId: this.householdId,
@@ -373,6 +399,7 @@ class PrismaWriteContext implements HouseholdWriteContext {
   }
 
   async updateMenu(menu: Menu): Promise<Menu> {
+    this.dirty = true;
     await this.tx.menu.update({ where: { id: menu.id }, data: { name: menu.name } });
     // 구성은 통째로 갈아 끼운다. 부분 갱신은 지워야 할 구성 큐브를 남길 여지가 있다.
     await this.tx.menuComponent.deleteMany({ where: { menuId: menu.id } });
@@ -387,6 +414,7 @@ class PrismaWriteContext implements HouseholdWriteContext {
   }
 
   async insertSlotSchedule(schedule: SlotSchedule): Promise<void> {
+    this.dirty = true;
     await this.tx.slotSchedule.create({
       data: {
         householdId: this.householdId,
@@ -398,6 +426,7 @@ class PrismaWriteContext implements HouseholdWriteContext {
   }
 
   async saveRules(rules: MealPlanningRules, textGuidance: string | null): Promise<void> {
+    this.dirty = true;
     const fields = {
       textGuidance,
       maxFirstIntroductionsPerDay: rules.maxFirstIntroductionsPerDay,
@@ -420,6 +449,7 @@ class PrismaWriteContext implements HouseholdWriteContext {
   }
 
   async saveAlertSettings(settings: AlertSettings): Promise<void> {
+    this.dirty = true;
     const fields = { briefTime: settings.briefTime, shelfLifeDays: settings.shelfLifeDays };
     await this.tx.alertSettings.upsert({
       where: { householdId: this.householdId },
@@ -429,6 +459,7 @@ class PrismaWriteContext implements HouseholdWriteContext {
   }
 
   async saveThresholds(thresholds: ReadonlyMap<string, number>): Promise<void> {
+    this.dirty = true;
     await this.tx.ingredientThreshold.deleteMany({ where: { householdId: this.householdId } });
     await this.tx.ingredientThreshold.createMany({
       data: [...thresholds].map(([ingredientId, thresholdCubes]) => ({

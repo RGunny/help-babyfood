@@ -85,6 +85,15 @@ enum DeliveryStatus {
   @@map("delivery_status")
 }
 
+/// 상태판 발행 한 건의 결말. skipped는 보낼 곳이 없었다는 뜻이고 실패가 아니다(ADR 0008).
+enum PublicationStatus {
+  published
+  skipped
+  failed
+
+  @@map("publication_status")
+}
+
 /// 보낸 메시지의 양식. src/slack/templates/message-template.ts의 TemplateKey와 같은 값이다.
 enum SlackTemplateKey {
   daily_brief
@@ -107,6 +116,9 @@ model Household {
   name           String
   /// 브리프를 보낼 Slack 채널. 연결하지 않은 가정은 발송이 skipped로 지나간다.
   slackChannelId String?  @map("slack_channel_id")
+  /// 이 가정의 상태를 실제로 바꾼 마지막 쓰기 트랜잭션의 시각. 상태판이 이것으로 갱신 여부를
+  /// 판정한다(ADR 0008). 각 테이블의 시각으로는 삭제를 알 수 없어 계산으로 대신할 수 없다.
+  stateChangedAt DateTime @default(now()) @map("state_changed_at") @db.Timestamptz(3)
   createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
 
   members                  Member[]
@@ -128,6 +140,8 @@ model Household {
   briefDeliveries          BriefDelivery[]
   reactionPromptDeliveries ReactionPromptDelivery[]
   slackMessages            SlackMessage[]
+  boardPublication         BoardPublication?
+  slackCanvas              SlackCanvas?
 
   @@map("household")
 }
@@ -566,4 +580,45 @@ model SlackMessage {
   @@unique([channelId, messageTs])
   @@index([householdId, postedAt])
   @@map("slack_message")
+}
+
+/// 상태판 발행 기록(ADR 0008). 어느 상태 시각과 어느 날까지 상태판을 맞췄는지를 말한다.
+/// 클레임은 읽기이고 행을 얻어야 발행하는 것이 아니다. 전체 교체라 두 번 발행해도 같다.
+model BoardPublication {
+  householdId   String            @id @map("household_id") @db.Uuid
+  status        PublicationStatus
+  /// 마지막으로 맞춘 household.state_changed_at. 클레임이 읽은 값이지 발행 시각이 아니다.
+  syncedStateAt DateTime?         @map("synced_state_at") @db.Timestamptz(3)
+  /// 마지막으로 맞춘 날짜. 날이 바뀌면 쓰기가 없어도 오늘 열이 움직이므로 다시 발행한다.
+  syncedOn      DateTime?         @map("synced_on") @db.Date
+  /// 연속 실패 횟수. 성공하면 0으로 돌아간다.
+  attempts      Int
+  /// failed일 때 다음 시도가 가능해지는 시각.
+  nextAttemptAt DateTime?         @map("next_attempt_at") @db.Timestamptz(3)
+  /// failed면 오류 메시지, skipped면 건너뛴 사유.
+  outcomeReason String?           @map("outcome_reason")
+  updatedAt     DateTime          @map("updated_at") @db.Timestamptz(3)
+
+  household Household @relation(fields: [householdId], references: [id])
+
+  @@map("board_publication")
+}
+
+/// 가정의 상태판이 올라가 있는 Slack 채널 캔버스(ADR 0008). Slack 어댑터만 쓴다.
+model SlackCanvas {
+  householdId     String   @id @map("household_id") @db.Uuid
+  /// 캔버스가 붙은 채널. 예: C0C464ME015
+  channelId       String   @map("channel_id")
+  /// 예: F0C4HPW0JP7
+  canvasId        String   @map("canvas_id")
+  /// 마지막으로 쓴 템플릿의 레이아웃 버전.
+  templateVersion Int      @map("template_version")
+  /// 마지막으로 쓴 내용의 SHA-256(버전과 마크다운). 같으면 Slack을 부르지 않는다.
+  contentHash     String   @map("content_hash")
+  updatedAt       DateTime @map("updated_at") @db.Timestamptz(3)
+
+  household Household @relation(fields: [householdId], references: [id])
+
+  @@unique([channelId, canvasId])
+  @@map("slack_canvas")
 }
