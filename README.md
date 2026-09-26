@@ -15,6 +15,8 @@
 | `docs/adr/0004-mcp-server-and-auth.md` | MCP SDK v2, 구성원별 Bearer 토큰 |
 | `docs/adr/0005-scheduler-and-daily-brief.md` | 매분 도는 정합화, 브리프 조립과 보류된 차감 |
 | `docs/adr/0006-slack-delivery-and-deployment.md` | Slack 발송 클레임과 재시도, 버튼 응답의 서명과 멱등키, Railway 배포 |
+| `docs/adr/0007-slack-message-templates.md` | 코드 템플릿, 재고 표, 보낸 메시지 스냅숏 |
+| `docs/adr/0008-slack-canvas-board.md` | 채널 캔버스 상태판, `state_changed_at` 갱신 판정, 회차 투영 |
 
 규칙을 알고 싶으면 기획안 4장을 읽는다. 왜 그렇게 만들었는지는 ADR에 있다.
 
@@ -23,15 +25,15 @@
 ```
 Claude Code ──MCP (Streamable HTTP)──> src/mcp (구성원 토큰 인증) ────┐
 Slack (휴대폰) ──버튼 응답 (HTTP)────> src/slack/inbound (서명 검증) ──┼──> src/application ──> src/domain
-스케줄러 (매분 정합화, 브리프 발송) ──> src/scheduler ─────────────────┘             │
+스케줄러 (매분 정합화, 브리프 발송, 상태판 갱신) ──> src/scheduler ───┘             │
                                                                                      └──> ports ──┬──> src/infrastructure ──> PostgreSQL
-                                                                                                  └──> src/slack/outbound ──> Slack Web API
+                                                                                                  └──> src/slack/outbound ──> Slack Web API (메시지, 캔버스)
 ```
 
-- `src/domain` 은 프레임워크, DB, 시스템 시계를 모른다. 현재 시각도 인자로 받는다. 1단계에서 만든 뒤 5단계까지 한 줄도 바뀌지 않았다(`git log -- src/domain`의 커밋은 `5e304cd` 하나다).
+- `src/domain` 은 프레임워크, DB, 시스템 시계를 모른다. 현재 시각도 인자로 받는다. 1단계에서 만든 뒤 5단계까지 한 줄도 바뀌지 않았고, 6단계가 회차 투영 함수 하나(`src/domain/ingredient/exposure-projection.ts`)를 더했다.
 - `src/application` 은 NestJS를 모른다. 서비스는 생성자에 포트를 받는 평범한 클래스이고, 모듈이 `useFactory`로 조립한다.
 - `src/mcp` 와 `src/scheduler` 는 어댑터다. 재고 규칙을 다시 쓰지 않고 애플리케이션을 부른다.
-- `src/slack` 도 어댑터이고 재고 규칙을 다시 쓰지 않는다. 브리프는 스케줄러가 `BriefDispatchService`를 부르고 그 서비스가 `BriefDeliveryPort`를 거쳐 `src/slack/outbound`로 내보낸다. 버튼 응답은 `src/slack/inbound`로 들어와 MCP 도구와 같은 `NoFeedService`, `ReactionService`, `StockService`를 부른다.
+- `src/slack` 도 어댑터이고 재고 규칙을 다시 쓰지 않는다. 브리프는 스케줄러가 `BriefDispatchService`를 부르고 그 서비스가 `BriefDeliveryPort`를 거쳐 `src/slack/outbound`로 내보낸다. 상태판(채널 캔버스)은 `BoardSyncService`가 `BoardPublisherPort`를 거쳐 같은 곳으로 내보낸다. 버튼 응답은 `src/slack/inbound`로 들어와 MCP 도구와 같은 `NoFeedService`, `ReactionService`, `StockService`를 부른다.
 
 ## 개발 환경
 
@@ -84,10 +86,11 @@ Slack을 가정에 연결한다. 가정마다 브리프를 받을 채널 id를 �
 ```bash
 pnpm slack-link --household 재하네 --channel C0123ABCD                  # 브리프를 보낼 채널
 pnpm slack-link --household 재하네 --member 엄마 --slack-user U0123ABCD  # 버튼을 누르는 사람
+pnpm slack-link --household 재하네 --canvas F0123ABCD                    # 사람이 먼저 만든 채널 캔버스를 상태판으로
 pnpm slack-link --list                                                   # 연결 상태
 ```
 
-채널에는 봇을 초대해 두어야 한다. 초대하지 않으면 발송이 `not_in_channel`로 실패한다. 채널이 연결되지 않은 가정의 그날 브리프는 재시도 없이 건너뛴다(ADR 0006 "재시도 정책"). 버튼 응답에는 누른 사람의 Slack 사용자 id만 들어 있다. 그 id가 구성원에 연결되어 있지 않으면 서버는 누가 눌렀는지 알 수 없어서, 아무것도 기록하지 않고 "등록되지 않은 Slack 사용자입니다"만 돌려준다(`src/slack/inbound/action-dispatch.ts`). 이 명령도 `member-token`처럼 이미 있는 가정과 구성원을 연결할 뿐 새로 만들지 않는다. 채널을 옮기는 MCP 도구는 없다.
+채널에는 봇을 초대해 두어야 한다. 초대하지 않으면 발송이 `not_in_channel`로 실패한다. 채널이 연결되지 않은 가정의 그날 브리프는 재시도 없이 건너뛴다(ADR 0006 "재시도 정책"). 버튼 응답에는 누른 사람의 Slack 사용자 id만 들어 있다. 그 id가 구성원에 연결되어 있지 않으면 서버는 누가 눌렀는지 알 수 없어서, 아무것도 기록하지 않고 "등록되지 않은 Slack 사용자입니다"만 돌려준다(`src/slack/inbound/action-dispatch.ts`). 이 명령도 `member-token`처럼 이미 있는 가정과 구성원을 연결할 뿐 새로 만들지 않는다. 채널을 옮기는 MCP 도구는 없다. 상태판 캔버스는 채널이 연결되면 서버가 다음 분에 만든다. 채널에 이미 캔버스가 있으면(채널당 하나) 서버가 만들 수 없으므로 `--canvas`로 그 id를 연결한다. 봇에는 `chat:write` 외에 `canvases:write`와 `canvases:read` 스코프가 있어야 한다.
 
 ## 환경 변수
 
@@ -101,8 +104,8 @@ pnpm slack-link --list                                                   # 연�
 
 ## 지금 되는 것과 안 되는 것
 
-5단계까지 끝났다(기획안 9장). Claude Code에서 재고와 식단을 관리할 수 있고, 서버가 매분 정합화를 돌려 식단시간이 지난 끼니를 자동으로 차감한다. 같은 tick에서 설정한 시각이 지난 가정의 브리프를 Slack 채널로 보내고, 실패하면 재시도한다. 부모는 브리프와 후속 메시지의 버튼으로 미급여, 반응, 폐기를 응답할 수 있다. 배포 설정도 저장소에 있다.
+6단계까지 끝났다(기획안 9장). Claude Code에서 재고와 식단을 관리할 수 있고, 서버가 매분 정합화를 돌려 식단시간이 지난 끼니를 자동으로 차감한다. 같은 tick에서 설정한 시각이 지난 가정의 브리프를 Slack 채널로 보내고, 실패하면 재시도한다. 부모는 브리프와 후속 메시지의 버튼으로 미급여, 반응, 폐기를 응답할 수 있다. 채널 탭의 캔버스에는 상태판이 있다. 엑셀 식단표 양식의 식단 달력(10일 블록, 첫 도입 재료의 회차 표시)과 재고 표, 임계일, 확인 필요를 담고, 상태가 바뀐 뒤 1~2분 안에 서버가 다시 쓴다(ADR 0008). 배포 설정도 저장소에 있다.
 
-2026-09-26부터 운영 중이다. 서버는 Railway의 `help-babyfood-production.up.railway.app`에 떠 있고, 식단과 재고를 이관했으며, 매일 07:30 브리프가 `#help-babyfood` 채널로 간다. 브리프의 재고는 표 한 장으로 보이고, 보낸 메시지는 `slack_message`에 남는다(ADR 0007). 양식을 미리 보려면 운영 컨테이너에서 `railway ssh "node dist/scripts/preview-slack.js --household 재하네"`를 돌린다. 로컬의 `pnpm slack-preview`는 로컬 DB를 읽는다.
+2026-09-26부터 운영 중이다. 서버는 Railway의 `help-babyfood-production.up.railway.app`에 떠 있고, 식단과 재고를 이관했으며, 매일 07:30 브리프가 `#help-babyfood` 채널로 간다. 브리프의 재고는 표 한 장으로 보이고, 보낸 메시지는 `slack_message`에 남는다(ADR 0007). 양식을 미리 보려면 운영 컨테이너에서 `railway ssh "node dist/scripts/preview-slack.js --household 재하네"`를 돌린다. 상태판은 `--template household_board --dry-run`이 마크다운을 출력한다. 로컬의 `pnpm slack-preview`는 로컬 DB를 읽는다.
 
 아직 남은 것은 `docs/user-intervention.md`의 표에 있다. 버튼 응답은 Slack 사용자 id를 연결한 구성원만 기록된다. 지금은 아빠만 연결되어 있고, 연결되지 않은 사람이 누르면 "등록되지 않은 Slack 사용자입니다"만 돌아온다(7번). PITR은 Railway Pro 플랜에서만 되어 보류 중이다.
