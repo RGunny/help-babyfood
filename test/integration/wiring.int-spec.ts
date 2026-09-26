@@ -1,7 +1,9 @@
 import { Test } from '@nestjs/testing';
 import { AlertSettingsService } from '../../src/application/alert-settings.service.js';
+import { BoardSyncService } from '../../src/application/board-sync.service.js';
 import { ApplicationModule } from '../../src/application/application.module.js';
 import { ForecastService } from '../../src/application/forecast.service.js';
+import { HouseholdBoardService } from '../../src/application/household-board.service.js';
 import { IngredientService } from '../../src/application/ingredient.service.js';
 import { MealPlanService } from '../../src/application/meal-plan.service.js';
 import { MealSlotService } from '../../src/application/meal-slot.service.js';
@@ -31,6 +33,8 @@ const SERVICES = [
   ForecastService,
   RulesService,
   AlertSettingsService,
+  HouseholdBoardService,
+  BoardSyncService,
 ];
 
 /** Only the environment is swapped: everything else is wired the way the server boots it. */

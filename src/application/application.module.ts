@@ -2,15 +2,19 @@ import { Module, Provider } from '@nestjs/common';
 import { PersistenceModule } from '../infrastructure/prisma/persistence.module.js';
 import { SlackDeliveryModule } from '../slack/outbound/slack-delivery.module.js';
 import { AlertSettingsService } from './alert-settings.service.js';
+import { BoardSyncService } from './board-sync.service.js';
 import { BriefDispatchService } from './brief-dispatch.service.js';
 import { DailyBriefService } from './daily-brief.service.js';
 import { ForecastService } from './forecast.service.js';
+import { HouseholdBoardService } from './household-board.service.js';
 import { IngredientService } from './ingredient.service.js';
 import { MealPlanImportService } from './meal-plan-import.service.js';
 import { MealPlanService } from './meal-plan.service.js';
 import { MealSlotService } from './meal-slot.service.js';
 import { MenuService } from './menu.service.js';
 import { NoFeedService } from './no-feed.service.js';
+import { BoardPublisherPort } from './ports/board-publisher.port.js';
+import { BoardSyncLogPort } from './ports/board-sync-log.port.js';
 import { BriefDeliveryLogPort } from './ports/brief-delivery-log.port.js';
 import { BriefDeliveryPort } from './ports/brief-delivery.port.js';
 import { ClockPort } from './ports/clock.port.js';
@@ -18,6 +22,8 @@ import { FeedingHistoryPort } from './ports/feeding-history.port.js';
 import { HouseholdDirectoryPort } from './ports/household-directory.port.js';
 import { HouseholdReader, HouseholdWriter } from './ports/household-write.port.js';
 import {
+  BOARD_PUBLISHER,
+  BOARD_SYNC_LOG,
   BRIEF_DELIVERY,
   BRIEF_DELIVERY_LOG,
   CLOCK,
@@ -116,6 +122,18 @@ const providers: Provider[] = [
     ) => new BriefDispatchService(log, delivery, brief, clock),
     inject: [BRIEF_DELIVERY_LOG, BRIEF_DELIVERY, DailyBriefService, CLOCK],
   },
+  {
+    provide: HouseholdBoardService,
+    useFactory: (reader: HouseholdReader, history: FeedingHistoryPort, clock: ClockPort) =>
+      new HouseholdBoardService(reader, history, clock),
+    inject: [HOUSEHOLD_READER, FEEDING_HISTORY, CLOCK],
+  },
+  {
+    provide: BoardSyncService,
+    useFactory: (log: BoardSyncLogPort, publisher: BoardPublisherPort, board: HouseholdBoardService, clock: ClockPort) =>
+      new BoardSyncService(log, publisher, board, clock),
+    inject: [BOARD_SYNC_LOG, BOARD_PUBLISHER, HouseholdBoardService, CLOCK],
+  },
 ];
 
 /** The use cases. MCP tools, the scheduler and Slack handlers all come through here. */
@@ -137,6 +155,8 @@ const providers: Provider[] = [
     AlertSettingsService,
     DailyBriefService,
     BriefDispatchService,
+    HouseholdBoardService,
+    BoardSyncService,
   ],
 })
 export class ApplicationModule {}

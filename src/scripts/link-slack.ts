@@ -2,6 +2,7 @@ import { parseArgs } from 'node:util';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { readEnv } from '../config/env.js';
 import { PrismaClient } from '../generated/prisma/client.js';
+import { householdBoardTemplate } from '../slack/templates/household-board.js';
 
 /**
  * Links a household to the channel its brief goes to, and a member to the Slack user who taps the
@@ -17,13 +18,18 @@ import { PrismaClient } from '../generated/prisma/client.js';
  *
  *   node dist/scripts/link-slack.js --household 재하네 --channel C0123ABCD
  *   node dist/scripts/link-slack.js --household 재하네 --member 엄마 --slack-user U0123ABCD
+ *   node dist/scripts/link-slack.js --household 재하네 --canvas F0C4HPW0JP7
  *   node dist/scripts/link-slack.js --list
+ *
+ * `--canvas` hands the server a channel canvas somebody made by hand. A channel holds one canvas,
+ * so the server cannot create its own beside it (ADR 0008); once linked, the next sweep fills it.
  */
 const USAGE = `사용법:
   --household <이름>     대상 가정.
   --channel <채널 id>    브리프를 보낼 채널. 예: C0123ABCD
   --member <이름>        구성원 이름. --slack-user와 함께 쓴다.
   --slack-user <U...>    그 구성원의 Slack 사용자 id. 버튼을 누른 사람을 찾는 데 쓴다.
+  --canvas <F...>        상태판으로 쓸 채널 캔버스 id. 채널이 먼저 연결되어 있어야 한다.
   --list                 연결 상태를 보인다.`;
 
 async function main(): Promise<void> {
@@ -33,6 +39,7 @@ async function main(): Promise<void> {
       channel: { type: 'string' },
       member: { type: 'string' },
       'slack-user': { type: 'string' },
+      canvas: { type: 'string' },
       list: { type: 'boolean' },
       help: { type: 'boolean' },
     },
@@ -57,14 +64,14 @@ async function main(): Promise<void> {
 
 async function link(
   prisma: PrismaClient,
-  values: { household?: string; channel?: string; member?: string; 'slack-user'?: string },
+  values: { household?: string; channel?: string; member?: string; 'slack-user'?: string; canvas?: string },
 ): Promise<void> {
   const householdName = required(values.household, '--household');
   const memberName = values.member;
   const slackUserId = values['slack-user'];
 
-  if (values.channel === undefined && memberName === undefined && slackUserId === undefined) {
-    fail(`--channel이나 --member와 --slack-user 중 하나는 있어야 합니다.\n\n${USAGE}`);
+  if (values.channel === undefined && memberName === undefined && slackUserId === undefined && values.canvas === undefined) {
+    fail(`--channel, --canvas, --member와 --slack-user 중 하나는 있어야 합니다.\n\n${USAGE}`);
   }
   if ((memberName === undefined) !== (slackUserId === undefined)) {
     fail(`--member와 --slack-user는 함께 씁니다.\n\n${USAGE}`);
@@ -72,7 +79,7 @@ async function link(
 
   const household = await prisma.household.findFirst({
     where: { name: householdName },
-    select: { id: true },
+    select: { id: true, slackChannelId: true },
   });
   if (household === null) {
     fail(`그런 가정이 없습니다: ${householdName}\n\npnpm member-token으로 먼저 만드세요.`);
@@ -100,6 +107,28 @@ async function link(
     await prisma.member.update({ where: { id: member.id }, data: { slackUserId: userId } });
     console.log(`${householdName}의 ${memberName}을 Slack 사용자 ${userId}에 연결했습니다.`);
   }
+
+  if (values.canvas !== undefined) {
+    const canvasId = nonBlank(values.canvas, '--canvas');
+    const channelId = values.channel?.trim() || household.slackChannelId;
+    if (channelId === null || channelId === '') {
+      fail(`${householdName}에 연결된 채널이 없습니다. --channel을 먼저 연결하세요.`);
+    }
+    // 해시를 비워 두어 다음 쓸기가 반드시 한 번 내용을 쓰게 한다.
+    const fields = {
+      channelId,
+      canvasId,
+      templateVersion: householdBoardTemplate.version,
+      contentHash: '',
+      updatedAt: new Date(),
+    };
+    await prisma.slackCanvas.upsert({
+      where: { householdId: household.id },
+      create: { householdId: household.id, ...fields },
+      update: fields,
+    });
+    console.log(`${householdName}의 상태판을 캔버스 ${canvasId}(채널 ${channelId})에 둡니다. 다음 쓸기가 내용을 채웁니다.`);
+  }
 }
 
 async function list(prisma: PrismaClient): Promise<void> {
@@ -107,6 +136,7 @@ async function list(prisma: PrismaClient): Promise<void> {
     select: {
       name: true,
       slackChannelId: true,
+      slackCanvas: { select: { canvasId: true } },
       members: { select: { name: true, slackUserId: true }, orderBy: { createdAt: 'asc' } },
     },
     orderBy: { createdAt: 'asc' },
@@ -116,7 +146,9 @@ async function list(prisma: PrismaClient): Promise<void> {
     return;
   }
   for (const household of households) {
-    console.log(`${household.name}  채널 ${household.slackChannelId ?? '연결 안 됨'}`);
+    console.log(
+      `${household.name}  채널 ${household.slackChannelId ?? '연결 안 됨'}  캔버스 ${household.slackCanvas?.canvasId ?? '없음'}`,
+    );
     for (const member of household.members) {
       console.log(`  ${member.name}  ${member.slackUserId ?? '연결 안 됨'}`);
     }

@@ -3,12 +3,17 @@ import { NestFactory } from '@nestjs/core';
 import { ApplicationModule } from '../application/application.module.js';
 import { DailyBrief } from '../application/daily-brief.js';
 import { DailyBriefService } from '../application/daily-brief.service.js';
+import { HouseholdBoardService } from '../application/household-board.service.js';
 import { ReactionPrompt } from '../application/ports/brief-delivery.port.js';
 import type { AppEnv } from '../config/env.js';
+import { CLOCK } from '../application/ports/tokens.js';
+import type { ClockPort } from '../application/ports/clock.port.js';
 import { APP_ENV, PrismaService } from '../infrastructure/prisma/prisma.service.js';
 import { SLACK_API_BASE_URL, postMessage } from '../slack/outbound/slack-brief-delivery.js';
+import { SlackCanvasPublisher } from '../slack/outbound/slack-canvas-publisher.js';
 import { SlackMessage, context } from '../slack/templates/blocks.js';
 import { dailyBriefTemplate } from '../slack/templates/daily-brief.js';
+import { householdBoardTemplate } from '../slack/templates/household-board.js';
 import { TemplateKey } from '../slack/templates/message-template.js';
 import { reactionPromptTemplate } from '../slack/templates/reaction-prompt.js';
 
@@ -25,11 +30,16 @@ import { reactionPromptTemplate } from '../slack/templates/reaction-prompt.js';
  *   node dist/scripts/preview-slack.js --household 재하네
  *   node dist/scripts/preview-slack.js --household 재하네 --channel C0123ABCD --template daily_brief
  *   node dist/scripts/preview-slack.js --household 재하네 --dry-run
+ *   node dist/scripts/preview-slack.js --household 재하네 --template household_board --dry-run
+ *
+ * `household_board` is the canvas (ADR 0008). Its dry run prints the markdown; without `--dry-run`
+ * it publishes to the linked canvas now, through the same publisher the sweep uses.
  */
 const USAGE = `사용법:
   --household <이름>     대상 가정.
   --channel <채널 id>    보낼 채널. 없으면 그 가정에 연결된 채널이다.
-  --template <키>        daily_brief, reaction_prompt, all 중 하나. 기본 all
+  --template <키>        daily_brief, reaction_prompt, all, household_board 중 하나. 기본 all.
+                         household_board는 메시지가 아니라 캔버스 상태판이라 all에 들지 않는다.
   --dry-run              보내지 않고 페이로드 JSON을 출력한다. Block Kit Builder에 붙여 넣을 수 있다.`;
 
 const TEMPLATES: readonly TemplateKey[] = ['daily_brief', 'reaction_prompt'];
@@ -53,7 +63,8 @@ async function main(): Promise<void> {
   }
   const householdName = values.household?.trim();
   if (householdName === undefined || householdName === '') fail(`--household가 필요합니다.\n\n${USAGE}`);
-  const keys = selectedTemplates(values.template);
+  const board = values.template === 'household_board';
+  const keys = board ? [] : selectedTemplates(values.template);
 
   const app = await NestFactory.createApplicationContext(ApplicationModule, { logger: ['error'] });
   try {
@@ -65,6 +76,8 @@ async function main(): Promise<void> {
       select: { id: true, slackChannelId: true },
     });
     if (household === null) fail(`그런 가정이 없습니다: ${householdName}`);
+
+    if (board) return await previewBoard(app.get(HouseholdBoardService), prisma, env, app.get<ClockPort>(CLOCK), household.id, values['dry-run'] === true);
 
     const brief = await app.get(DailyBriefService).get(household.id);
     const messages = keys.flatMap((key) => render(key, brief));
@@ -85,6 +98,25 @@ async function main(): Promise<void> {
   } finally {
     await app.close();
   }
+}
+
+/** The canvas: printed as markdown, or published to the linked canvas the way the sweep would. */
+async function previewBoard(
+  boards: HouseholdBoardService,
+  prisma: PrismaService,
+  env: AppEnv,
+  clock: ClockPort,
+  householdId: string,
+  dryRun: boolean,
+): Promise<void> {
+  const board = await boards.get(householdId);
+  if (dryRun) {
+    console.log(householdBoardTemplate.render(board));
+    return;
+  }
+  const result = await new SlackCanvasPublisher(prisma, env.slackBotToken, clock).publish(householdId, board);
+  if (result.kind === 'published') console.log(`household_board: 캔버스 ${result.reference}에 올렸습니다.`);
+  else console.log(`household_board: 올리지 못했습니다 (${result.reason}).`);
 }
 
 function selectedTemplates(value: string | undefined): readonly TemplateKey[] {

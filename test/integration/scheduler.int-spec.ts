@@ -4,13 +4,15 @@ import { Server, createServer } from 'node:http';
 import { AddressInfo } from 'node:net';
 import { AppModule } from '../../src/app.module.js';
 import { ClockPort } from '../../src/application/ports/clock.port.js';
-import { BRIEF_DELIVERY, CLOCK } from '../../src/application/ports/tokens.js';
+import { BOARD_PUBLISHER, BRIEF_DELIVERY, CLOCK } from '../../src/application/ports/tokens.js';
 import { AppEnv } from '../../src/config/env.js';
 import { localDate } from '../../src/domain/shared/local-date.js';
 import { APP_ENV, PrismaService } from '../../src/infrastructure/prisma/prisma.service.js';
+import { BOARD_SYNC_JOB } from '../../src/scheduler/board-sync.job.js';
 import { BRIEF_DISPATCH_JOB } from '../../src/scheduler/brief-dispatch.job.js';
 import { RECONCILE_JOB } from '../../src/scheduler/reconcile.job.js';
 import { SlackBriefDelivery } from '../../src/slack/outbound/slack-brief-delivery.js';
+import { SlackCanvasPublisher } from '../../src/slack/outbound/slack-canvas-publisher.js';
 import { PrismaSlackMessageLog } from '../../src/slack/outbound/slack-message-log.js';
 import { Household, TestServices, at, buildServices, seedHousehold, seedHouseholdOnly } from './setup/fixtures.js';
 import { testDatabaseUrl } from './setup/database.js';
@@ -168,6 +170,13 @@ async function bootApp(schedulerEnabled: boolean) {
         new SlackBriefDelivery(prisma, 'xoxb-test', new PrismaSlackMessageLog(prisma), clock, slackBaseUrl),
       inject: [PrismaService, CLOCK],
     })
+    // 상태판 발행도 같은 가짜 서버로 보낸다. 분 경계에서 캔버스 잡이 스스로 돌아도 slack.com으로 나가지 않는다.
+    .overrideProvider(BOARD_PUBLISHER)
+    .useFactory({
+      factory: (prisma: PrismaService, clock: ClockPort) =>
+        new SlackCanvasPublisher(prisma, 'xoxb-test', clock, undefined, slackBaseUrl),
+      inject: [PrismaService, CLOCK],
+    })
     .overrideProvider(APP_ENV)
     .useValue({
       databaseUrl: testDatabaseUrl(),
@@ -222,13 +231,15 @@ describe('스케줄러 배선', () => {
     }
   });
 
-  it('서버를 띄우면 정합화 잡과 브리프 발송 잡이 둘 다 등록된다', async () => {
+  it('서버를 띄우면 정합화, 브리프 발송, 상태판 동기화 잡이 모두 등록된다', async () => {
     const moduleRef = await bootApp(true);
     try {
       const registry = moduleRef.get(SchedulerRegistry);
       expect(registry.doesExist('cron', RECONCILE_JOB)).toBe(true);
       expect(registry.doesExist('cron', BRIEF_DISPATCH_JOB)).toBe(true);
-      expect(registry.getCronJobs().size).toBe(2);
+      expect(registry.doesExist('cron', BOARD_SYNC_JOB)).toBe(true);
+      expect(registry.getCronJob(BOARD_SYNC_JOB).cronTime.source).toBe('*/1 * * * *');
+      expect(registry.getCronJobs().size).toBe(3);
     } finally {
       await moduleRef.close();
     }
@@ -249,6 +260,7 @@ describe('스케줄러 배선', () => {
       const registry = moduleRef.get(SchedulerRegistry);
       expect(registry.getCronJobs().size).toBe(0);
       expect(registry.doesExist('cron', BRIEF_DISPATCH_JOB)).toBe(false);
+      expect(registry.doesExist('cron', BOARD_SYNC_JOB)).toBe(false);
     } finally {
       await moduleRef.close();
     }
