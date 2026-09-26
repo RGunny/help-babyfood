@@ -11,7 +11,7 @@ import { localDate } from '../../src/domain/shared/local-date.js';
 import { localTime } from '../../src/domain/shared/local-time.js';
 import { APP_ENV } from '../../src/infrastructure/prisma/prisma.service.js';
 import { actionId, encodeDiscard, encodeNoFeed, encodeReaction } from '../../src/slack/actions.js';
-import { UNKNOWN_SLACK_USER } from '../../src/slack/inbound/action-dispatch.js';
+import { UNKNOWN_SLACK_USER } from '../../src/slack/templates/button-reply.js';
 import { SIGNATURE_TOLERANCE_SECONDS } from '../../src/slack/inbound/signature.js';
 import { testDatabaseUrl } from './setup/database.js';
 import { Household, INGREDIENTS, MENU_NAME, TestServices, at, buildServices, seedHousehold } from './setup/fixtures.js';
@@ -295,7 +295,7 @@ describe('Slack 버튼 응답', () => {
     await feedThroughAugust18(house);
     const path = responsePath();
 
-    // render-reaction-prompt.ts는 재료마다 actions 블록을 따로 두므로 두 버튼의 action_id가
+    // templates/reaction-prompt.ts는 재료마다 actions 블록을 따로 두므로 두 버튼의 action_id가
     // 둘 다 reaction.0이다. message.ts도 같으니 두 탭을 가르는 것은 value뿐이다.
     const buttons = ['소고기', '브로콜리'].map((name) => reactionButton(house, '2026-08-17', name, 'clear'));
     expect(new Set(buttons.map((button) => button.actionId))).toEqual(new Set(['reaction.0']));
@@ -335,7 +335,7 @@ describe('Slack 버튼 응답', () => {
     });
     const path = responsePath();
 
-    // render-brief.ts는 끼니마다 no_feed.0(해동 전)과 no_feed.1(해동 후)을 붙인다. 두 끼니의
+    // templates/daily-brief.ts는 끼니마다 no_feed.0(해동 전)과 no_feed.1(해동 후)을 붙인다. 두 끼니의
     // 해동 전 버튼은 action_id가 둘 다 no_feed.0이고 value의 끼니만 다르다.
     const buttons = (['morning', 'afternoon'] as const).map((slot): Button => ({
       actionId: actionId('no_feed', 0),

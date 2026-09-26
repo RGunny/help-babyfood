@@ -6,16 +6,8 @@ import { HouseholdReader } from '../../application/ports/household-write.port.js
 import { DomainError } from '../../domain/errors.js';
 import { localDate } from '../../domain/shared/local-date.js';
 import { actionId, encodeDiscard, encodeNoFeed, encodeReaction } from '../actions.js';
-import {
-  ButtonTap,
-  ButtonUseCases,
-  PROCESSING_FAILED,
-  SlackActionDispatcher,
-  UNKNOWN_BUTTON,
-  UNKNOWN_INGREDIENT,
-  UNKNOWN_SLACK_USER,
-  idempotencyKeyOf,
-} from './action-dispatch.js';
+import { PROCESSING_FAILED, UNKNOWN_BUTTON, UNKNOWN_INGREDIENT, UNKNOWN_SLACK_USER } from '../templates/button-reply.js';
+import { ButtonTap, ButtonUseCases, SlackActionDispatcher, idempotencyKeyOf } from './action-dispatch.js';
 import { SlackMember } from './slack-member.resolver.js';
 
 const HOUSEHOLD_ID = 'household-1';

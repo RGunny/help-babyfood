@@ -85,6 +85,14 @@ enum DeliveryStatus {
   @@map("delivery_status")
 }
 
+/// 보낸 메시지의 양식. src/slack/templates/message-template.ts의 TemplateKey와 같은 값이다.
+enum SlackTemplateKey {
+  daily_brief
+  reaction_prompt
+
+  @@map("slack_template_key")
+}
+
 /// 원장을 바꾼 주체. 스케줄러가 도는 정합화에는 구성원이 없다.
 enum ActorSource {
   member
@@ -119,6 +127,7 @@ model Household {
   memberTokens             MemberToken[]
   briefDeliveries          BriefDelivery[]
   reactionPromptDeliveries ReactionPromptDelivery[]
+  slackMessages            SlackMessage[]
 
   @@map("household")
 }
@@ -534,4 +543,27 @@ model ReactionPromptDelivery {
 
   @@id([householdId, date, slot])
   @@map("reaction_prompt_delivery")
+}
+
+/// Slack에 보낸 메시지를 보낸 그대로 남긴다(ADR 0007). 발송 로그가 "보냈는가"를 말한다면
+/// 이 테이블은 "무엇을 보냈는가"를 말한다. Slack 어댑터만 쓴다.
+model SlackMessage {
+  id              String           @id @default(uuid(7)) @db.Uuid
+  householdId     String           @map("household_id") @db.Uuid
+  /// 메시지가 올라간 채널. 예: C0C464ME015
+  channelId       String           @map("channel_id")
+  /// chat.postMessage가 돌려준 ts. 채널과 함께 메시지 하나를 가리킨다. 예: 1790408011.344589
+  messageTs       String           @map("message_ts")
+  templateKey     SlackTemplateKey @map("template_key")
+  /// 그 템플릿의 레이아웃 버전. 레이아웃을 바꿀 때 코드에서 올린다.
+  templateVersion Int              @map("template_version")
+  /// 보낸 { text, blocks } 그대로.
+  payload         Json             @db.JsonB
+  postedAt        DateTime         @map("posted_at") @db.Timestamptz(3)
+
+  household Household @relation(fields: [householdId], references: [id])
+
+  @@unique([channelId, messageTs])
+  @@index([householdId, postedAt])
+  @@map("slack_message")
 }

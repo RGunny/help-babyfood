@@ -1,0 +1,32 @@
+import { LocalDate } from '../../domain/shared/local-date.js';
+import { MealSlot } from '../../domain/shared/meal-slot.js';
+import { RuleWarningCode } from '../../domain/rules/meal-rules.js';
+import { ExpiryStage } from '../../domain/stock/expiry.js';
+
+/** The Korean words the templates and the button replies share. */
+export const SLOT_LABEL: Record<MealSlot, string> = { morning: '오전', afternoon: '오후' };
+
+export const RULE_WARNING_LABEL: Record<RuleWarningCode, string> = {
+  FORBIDDEN_PAIRING: '금지 조합',
+  TOO_MANY_FIRST_INTRODUCTIONS: '하루 첫 도입 재료가 너무 많음',
+  FIRST_INTRODUCTION_IN_WRONG_SLOT: '첫 도입이 오전 끼니가 아님',
+  REACTED_INGREDIENT_PLANNED: '반응 있었던 재료가 식단에 있음',
+};
+
+export function stageLabel(stage: ExpiryStage): string {
+  switch (stage.kind) {
+    case 'fresh':
+      return '기한 여유';
+    case 'due_tomorrow':
+      return '내일 기한';
+    case 'due_today':
+      return '오늘 기한';
+    case 'pending_discard':
+      return `기한 ${stage.overdueDays}일 초과, 폐기 대기`;
+  }
+}
+
+/** `2026-09-28` as `09-28`, for table cells. The year is in the brief's title. */
+export function shortDate(date: LocalDate): string {
+  return date.slice(5);
+}

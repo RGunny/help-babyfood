@@ -6,7 +6,16 @@ import { ReactionService } from '../../application/reaction.service.js';
 import { StockService } from '../../application/stock.service.js';
 import { DomainError } from '../../domain/errors.js';
 import { SlackAction, decodeAction } from '../actions.js';
-import { SLOT_LABEL } from '../outbound/render-brief.js';
+import {
+  BATCH_DISCARDED,
+  PROCESSING_FAILED,
+  UNKNOWN_BUTTON,
+  UNKNOWN_INGREDIENT,
+  UNKNOWN_SLACK_USER,
+  noFeedRecorded,
+  reactionRecorded,
+  refused,
+} from '../templates/button-reply.js';
 import { SlackMember } from './slack-member.resolver.js';
 
 /** One tapped button, as much of the `block_actions` payload as the dispatch reads. */
@@ -32,13 +41,6 @@ export interface MemberLookup {
 
 /** Sends a sentence back to the parent who tapped, visible only to them. */
 export type EphemeralReply = (responseUrl: string, text: string) => Promise<void>;
-
-export const UNKNOWN_SLACK_USER = '등록되지 않은 Slack 사용자입니다';
-export const UNKNOWN_BUTTON = '알 수 없는 버튼입니다. 최신 브리프의 버튼을 눌러 주세요';
-export const UNKNOWN_INGREDIENT = '버튼이 가리키는 재료를 찾을 수 없습니다';
-export const PROCESSING_FAILED = '처리하지 못했습니다. 잠시 뒤 다시 눌러 주세요';
-
-const REACTION_LABEL = { clear: '이상 없음', reacted: '반응 있음' } as const;
 
 /**
  * Same message, same button, same value: a second tap of one button. Anything else is a different
@@ -86,7 +88,7 @@ export class SlackActionDispatcher {
       return await this.dispatch(member, action, idempotencyKeyOf(tap));
     } catch (error) {
       if (error instanceof DomainError || error instanceof ApplicationError) {
-        return `처리하지 못했습니다: ${error.message}`;
+        return refused(error.message);
       }
       // 내부 오류의 문장은 부모가 고칠 수 있는 것이 아니고, 밖으로 보낼 것도 아니다.
       this.logger.error('Slack 버튼 처리 중 예상하지 못한 오류가 났습니다', stackOf(error));
@@ -107,8 +109,7 @@ export class SlackActionDispatcher {
           thawed: action.thawed,
           reason: null,
         });
-        const state = action.thawed ? '해동 후' : '해동 전';
-        return `${action.date} ${SLOT_LABEL[action.slot]} 미급여(${state})를 기록했습니다`;
+        return noFeedRecorded(action.date, action.slot, action.thawed);
       }
       case 'reaction': {
         const ingredientName = await this.ingredientName(householdId, action.ingredientId);
@@ -122,7 +123,7 @@ export class SlackActionDispatcher {
           ingredientName,
           result: action.result,
         });
-        return `${action.date} ${SLOT_LABEL[action.slot]} ${ingredientName}: ${REACTION_LABEL[action.result]}으로 기록했습니다`;
+        return reactionRecorded(action.date, action.slot, ingredientName, action.result);
       }
       case 'discard': {
         // 브리프의 폐기 완료 버튼은 임계일을 넘긴 배치에만 붙는다(기획안 4.5절).
@@ -133,7 +134,7 @@ export class SlackActionDispatcher {
           batchId: action.batchId,
           reason: 'expired',
         });
-        return '배치를 폐기했습니다';
+        return BATCH_DISCARDED;
       }
     }
   }

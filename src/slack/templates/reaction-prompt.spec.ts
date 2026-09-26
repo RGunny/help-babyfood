@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import type { ActionsBlock, Button } from '@slack/types';
 import { localDate } from '../../domain/shared/local-date.js';
 import { decodeAction } from '../actions.js';
-import { renderReactionPrompt } from './render-reaction-prompt.js';
+import { reactionPromptTemplate } from './reaction-prompt.js';
 
 const DATE = localDate('2026-09-22');
 
@@ -11,7 +11,7 @@ describe('후속 메시지 렌더링', () => {
     { ingredientId: randomUUID(), name: '완두콩', exposureNumber: 1 },
     { ingredientId: randomUUID(), name: '달걀노른자', exposureNumber: 3 },
   ];
-  const message = renderReactionPrompt({ date: DATE, slot: 'morning', ingredients });
+  const message = reactionPromptTemplate.render({ date: DATE, slot: 'morning', ingredients });
   const actionBlocks = message.blocks.filter((block): block is ActionsBlock => block.type === 'actions');
 
   it('재료마다 이상 없음과 반응 있음 버튼이 둘이다', () => {

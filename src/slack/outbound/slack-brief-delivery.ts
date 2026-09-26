@@ -1,8 +1,13 @@
+import { Logger } from '@nestjs/common';
 import { DailyBrief } from '../../application/daily-brief.js';
 import { BriefDeliveryPort, DeliveryResult, ReactionPrompt } from '../../application/ports/brief-delivery.port.js';
+import { ClockPort } from '../../application/ports/clock.port.js';
 import { PrismaTransaction } from '../../infrastructure/prisma/prisma.service.js';
-import { SlackMessage, renderBrief } from './render-brief.js';
-import { renderReactionPrompt } from './render-reaction-prompt.js';
+import { SlackMessage } from '../templates/blocks.js';
+import { dailyBriefTemplate } from '../templates/daily-brief.js';
+import { MessageTemplate } from '../templates/message-template.js';
+import { reactionPromptTemplate } from '../templates/reaction-prompt.js';
+import { SlackMessageLog } from './slack-message-log.js';
 
 export const SLACK_API_BASE_URL = 'https://slack.com/api';
 
@@ -17,7 +22,8 @@ interface PostMessageResponse {
 }
 
 /**
- * Posts the brief and the follow-up to the household's channel with `chat.postMessage`.
+ * Posts the brief and the follow-up to the household's channel with `chat.postMessage`, and keeps
+ * what it posted in `slack_message`.
  *
  * Plain `fetch` rather than `@slack/web-api` (ADR 0006), which moves one duty here: Slack answers a
  * failed call with HTTP 200 and `{"ok": false, "error": "..."}`. The HTTP status alone would record
@@ -27,52 +33,94 @@ interface PostMessageResponse {
  * The channel id is read from Prisma directly. Looking up an identifier is not a use case (ADR
  * 0004, "층별 결합"), and this reads nothing else from the store.
  *
- * `baseUrl` is a constructor argument so that a test can point it at a fake server. It is not an
- * environment variable: production has one Slack.
+ * `baseUrl` is an option so that a test can point it at a fake server. It is not an environment
+ * variable: production has one Slack.
  */
 export class SlackBriefDelivery implements BriefDeliveryPort {
+  private readonly logger = new Logger(SlackBriefDelivery.name);
+
   constructor(
     private readonly prisma: PrismaTransaction,
     private readonly botToken: string,
+    private readonly messageLog: SlackMessageLog,
+    private readonly clock: ClockPort,
     private readonly baseUrl: string = SLACK_API_BASE_URL,
   ) {}
 
   async deliverDailyBrief(householdId: string, brief: DailyBrief): Promise<DeliveryResult> {
-    return await this.post(householdId, renderBrief(brief));
+    return await this.post(householdId, dailyBriefTemplate, brief);
   }
 
   async deliverReactionPrompt(householdId: string, prompt: ReactionPrompt): Promise<DeliveryResult> {
-    return await this.post(householdId, renderReactionPrompt(prompt));
+    return await this.post(householdId, reactionPromptTemplate, prompt);
   }
 
-  private async post(householdId: string, message: SlackMessage): Promise<DeliveryResult> {
+  private async post<Input>(
+    householdId: string,
+    template: MessageTemplate<Input>,
+    input: Input,
+  ): Promise<DeliveryResult> {
     const household = await this.prisma.household.findUnique({
       where: { id: householdId },
       select: { slackChannelId: true },
     });
-    const channel = household?.slackChannelId ?? null;
-    if (channel === null) return { kind: 'skipped', reason: NOT_LINKED };
+    const channelId = household?.slackChannelId ?? null;
+    if (channelId === null) return { kind: 'skipped', reason: NOT_LINKED };
 
-    const response = await fetch(`${this.baseUrl}/chat.postMessage`, {
-      method: 'POST',
-      headers: {
-        authorization: `Bearer ${this.botToken}`,
-        'content-type': 'application/json; charset=utf-8',
-      },
-      body: JSON.stringify({ channel, text: message.text, blocks: message.blocks }),
-    });
-    if (!response.ok) {
-      throw new Error(`Slack chat.postMessage가 HTTP ${response.status}로 실패했습니다`);
-    }
+    const message = template.render(input);
+    const messageTs = await postMessage(this.baseUrl, this.botToken, channelId, message);
 
-    const body = (await response.json()) as PostMessageResponse;
-    // HTTP 200이어도 실패일 수 있다. 판정은 본문의 "ok"로 한다.
-    if (body.ok !== true) {
-      throw new Error(`Slack chat.postMessage가 실패했습니다: ${String(body.error ?? 'unknown_error')}`);
+    // 메시지는 이미 채널에 있다. 여기서 던지면 발송 로그가 실패로 남고 재시도가 같은 브리프를
+    // 한 번 더 보낸다. 스냅숏 하나가 빠지는 쪽을 택한다(ADR 0007).
+    try {
+      await this.messageLog.record({
+        householdId,
+        channelId,
+        messageTs,
+        templateKey: template.key,
+        templateVersion: template.version,
+        message,
+        postedAt: this.clock.instant(),
+      });
+    } catch (error) {
+      this.logger.error(
+        `보낸 메시지의 스냅숏을 남기지 못했습니다: ${template.key} ${channelId} ${messageTs}`,
+        error instanceof Error ? (error.stack ?? error.message) : String(error),
+      );
     }
-    if (typeof body.ts !== 'string') {
-      throw new Error('Slack chat.postMessage 응답에 ts가 없습니다');
-    }
-    return { kind: 'sent', reference: body.ts };
+    return { kind: 'sent', reference: messageTs };
   }
+}
+
+/**
+ * One `chat.postMessage` call. Returns the message's `ts`, or throws with what Slack said.
+ * `src/scripts/preview-slack.ts` posts through this too, so a preview fails the way a brief would.
+ */
+export async function postMessage(
+  baseUrl: string,
+  botToken: string,
+  channelId: string,
+  message: SlackMessage,
+): Promise<string> {
+  const response = await fetch(`${baseUrl}/chat.postMessage`, {
+    method: 'POST',
+    headers: {
+      authorization: `Bearer ${botToken}`,
+      'content-type': 'application/json; charset=utf-8',
+    },
+    body: JSON.stringify({ channel: channelId, text: message.text, blocks: message.blocks }),
+  });
+  if (!response.ok) {
+    throw new Error(`Slack chat.postMessage가 HTTP ${response.status}로 실패했습니다`);
+  }
+
+  const body = (await response.json()) as PostMessageResponse;
+  // HTTP 200이어도 실패일 수 있다. 판정은 본문의 "ok"로 한다.
+  if (body.ok !== true) {
+    throw new Error(`Slack chat.postMessage가 실패했습니다: ${String(body.error ?? 'unknown_error')}`);
+  }
+  if (typeof body.ts !== 'string') {
+    throw new Error('Slack chat.postMessage 응답에 ts가 없습니다');
+  }
+  return body.ts;
 }

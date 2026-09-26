@@ -1,0 +1,301 @@
+{
+  "text": "2026-09-26 이유식 브리프 · 27일차",
+  "blocks": [
+    {
+      "type": "header",
+      "text": {
+        "type": "plain_text",
+        "text": "2026-09-26 이유식 브리프 · 27일차"
+      }
+    },
+    {
+      "type": "section",
+      "text": {
+        "type": "mrkdwn",
+        "text": "*오전* 10:00  쌀오트밀죽 + 소고기 + 청경채 + 단호박 (급여 완료)"
+      }
+    },
+    {
+      "type": "actions",
+      "elements": [
+        {
+          "type": "button",
+          "action_id": "no_feed.0",
+          "text": {
+            "type": "plain_text",
+            "text": "오전 미급여(해동 전)"
+          },
+          "value": "2026-09-26|morning|frozen"
+        },
+        {
+          "type": "button",
+          "action_id": "no_feed.1",
+          "text": {
+            "type": "plain_text",
+            "text": "오전 미급여(해동 후)"
+          },
+          "value": "2026-09-26|morning|thawed"
+        }
+      ]
+    },
+    {
+      "type": "section",
+      "text": {
+        "type": "mrkdwn",
+        "text": "*새 재료 관찰 · 급여 후 반응을 관찰하세요*\n• 오전 1회차: 쌀, 오트밀"
+      }
+    },
+    {
+      "type": "divider"
+    },
+    {
+      "type": "section",
+      "text": {
+        "type": "mrkdwn",
+        "text": "*재고현황*"
+      }
+    },
+    {
+      "type": "table",
+      "rows": [
+        [
+          {
+            "type": "raw_text",
+            "text": "재료"
+          },
+          {
+            "type": "raw_text",
+            "text": "합계"
+          },
+          {
+            "type": "raw_text",
+            "text": "가용"
+          },
+          {
+            "type": "raw_text",
+            "text": "폐기대기"
+          },
+          {
+            "type": "raw_text",
+            "text": "소진 예상"
+          },
+          {
+            "type": "raw_text",
+            "text": "임계"
+          }
+        ],
+        [
+          {
+            "type": "raw_text",
+            "text": "소고기"
+          },
+          {
+            "type": "raw_number",
+            "value": 2,
+            "text": "2"
+          },
+          {
+            "type": "raw_number",
+            "value": 0,
+            "text": "0"
+          },
+          {
+            "type": "raw_number",
+            "value": 2,
+            "text": "2"
+          },
+          {
+            "type": "raw_text",
+            "text": "09-28"
+          },
+          {
+            "type": "raw_text",
+            "text": "–"
+          }
+        ],
+        [
+          {
+            "type": "raw_text",
+            "text": "브로콜리"
+          },
+          {
+            "type": "raw_number",
+            "value": 3,
+            "text": "3"
+          },
+          {
+            "type": "raw_number",
+            "value": 0,
+            "text": "0"
+          },
+          {
+            "type": "raw_number",
+            "value": 3,
+            "text": "3"
+          },
+          {
+            "type": "raw_text",
+            "text": "09-30"
+          },
+          {
+            "type": "raw_text",
+            "text": "–"
+          }
+        ],
+        [
+          {
+            "type": "raw_text",
+            "text": "쌀"
+          },
+          {
+            "type": "raw_number",
+            "value": 5,
+            "text": "5"
+          },
+          {
+            "type": "raw_number",
+            "value": 5,
+            "text": "5"
+          },
+          {
+            "type": "raw_number",
+            "value": 0,
+            "text": "0"
+          },
+          {
+            "type": "raw_text",
+            "text": "10-01"
+          },
+          {
+            "type": "raw_text",
+            "text": "–"
+          }
+        ],
+        [
+          {
+            "type": "raw_text",
+            "text": "오이"
+          },
+          {
+            "type": "raw_number",
+            "value": 0,
+            "text": "0"
+          },
+          {
+            "type": "raw_number",
+            "value": 0,
+            "text": "0"
+          },
+          {
+            "type": "raw_number",
+            "value": 0,
+            "text": "0"
+          },
+          {
+            "type": "raw_text",
+            "text": "–"
+          },
+          {
+            "type": "raw_number",
+            "value": 2,
+            "text": "2"
+          }
+        ],
+        [
+          {
+            "type": "raw_text",
+            "text": "오트밀"
+          },
+          {
+            "type": "raw_number",
+            "value": 15,
+            "text": "15"
+          },
+          {
+            "type": "raw_number",
+            "value": 15,
+            "text": "15"
+          },
+          {
+            "type": "raw_number",
+            "value": 0,
+            "text": "0"
+          },
+          {
+            "type": "raw_text",
+            "text": "–"
+          },
+          {
+            "type": "raw_text",
+            "text": "–"
+          }
+        ]
+      ],
+      "column_settings": [
+        {
+          "align": "left",
+          "is_wrapped": true
+        },
+        {
+          "align": "right",
+          "is_wrapped": false
+        },
+        {
+          "align": "right",
+          "is_wrapped": false
+        },
+        {
+          "align": "right",
+          "is_wrapped": false
+        },
+        {
+          "align": "center",
+          "is_wrapped": false
+        },
+        {
+          "align": "right",
+          "is_wrapped": false
+        }
+      ]
+    },
+    {
+      "type": "context",
+      "elements": [
+        {
+          "type": "mrkdwn",
+          "text": "재고 0: 계란"
+        }
+      ]
+    },
+    {
+      "type": "section",
+      "text": {
+        "type": "mrkdwn",
+        "text": "*임계일 알람*\n• 소고기 2026-09-02 조리분 2개 · 기한 2026-09-16 · 기한 10일 초과, 폐기 대기\n• 브로콜리 2026-09-04 조리분 3개 · 기한 2026-09-18 · 기한 8일 초과, 폐기 대기"
+      }
+    },
+    {
+      "type": "actions",
+      "elements": [
+        {
+          "type": "button",
+          "action_id": "discard.0",
+          "text": {
+            "type": "plain_text",
+            "text": "폐기 완료: 소고기 2026-09-02"
+          },
+          "value": "0199a1b2-c3d4-7e5f-8a9b-000000000103"
+        },
+        {
+          "type": "button",
+          "action_id": "discard.1",
+          "text": {
+            "type": "plain_text",
+            "text": "폐기 완료: 브로콜리 2026-09-04"
+          },
+          "value": "0199a1b2-c3d4-7e5f-8a9b-000000000104"
+        }
+      ]
+    }
+  ]
+}

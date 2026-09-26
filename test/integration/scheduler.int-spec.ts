@@ -3,13 +3,15 @@ import { SchedulerRegistry } from '@nestjs/schedule';
 import { Server, createServer } from 'node:http';
 import { AddressInfo } from 'node:net';
 import { AppModule } from '../../src/app.module.js';
-import { BRIEF_DELIVERY } from '../../src/application/ports/tokens.js';
+import { ClockPort } from '../../src/application/ports/clock.port.js';
+import { BRIEF_DELIVERY, CLOCK } from '../../src/application/ports/tokens.js';
 import { AppEnv } from '../../src/config/env.js';
 import { localDate } from '../../src/domain/shared/local-date.js';
 import { APP_ENV, PrismaService } from '../../src/infrastructure/prisma/prisma.service.js';
 import { BRIEF_DISPATCH_JOB } from '../../src/scheduler/brief-dispatch.job.js';
 import { RECONCILE_JOB } from '../../src/scheduler/reconcile.job.js';
 import { SlackBriefDelivery } from '../../src/slack/outbound/slack-brief-delivery.js';
+import { PrismaSlackMessageLog } from '../../src/slack/outbound/slack-message-log.js';
 import { Household, TestServices, at, buildServices, seedHousehold, seedHouseholdOnly } from './setup/fixtures.js';
 import { testDatabaseUrl } from './setup/database.js';
 
@@ -162,8 +164,9 @@ async function bootApp(schedulerEnabled: boolean) {
   const moduleRef = await Test.createTestingModule({ imports: [AppModule] })
     .overrideProvider(BRIEF_DELIVERY)
     .useFactory({
-      factory: (prisma: PrismaService) => new SlackBriefDelivery(prisma, 'xoxb-test', slackBaseUrl),
-      inject: [PrismaService],
+      factory: (prisma: PrismaService, clock: ClockPort) =>
+        new SlackBriefDelivery(prisma, 'xoxb-test', new PrismaSlackMessageLog(prisma), clock, slackBaseUrl),
+      inject: [PrismaService, CLOCK],
     })
     .overrideProvider(APP_ENV)
     .useValue({
