@@ -151,7 +151,7 @@ grep -q "PANTRY_WITH_STOCK" test/integration/ingredient.int-spec.ts
 grep -q "PANTRY_INGREDIENT" test/integration/stock.int-spec.ts
 grep -q "상비" test/integration/settings.int-spec.ts
 grep -q "pantryIngredients" test/integration/daily-brief.int-spec.ts
-git diff --quiet "$HARNESS_BASELINE" -- src/domain src/infrastructure src/mcp src/slack src/scheduler prisma docs README.md
+git diff --quiet HEAD -- src/domain src/infrastructure src/mcp src/slack src/scheduler prisma docs README.md
 ```
 
 ## AC 검증 방법

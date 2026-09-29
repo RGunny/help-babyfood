@@ -37,7 +37,7 @@ pnpm test
 pnpm test:int
 grep -q "updateStockTracking" src/infrastructure/prisma/household-writer.ts
 grep -A 3 "async updateStockTracking" src/infrastructure/prisma/household-writer.ts | grep -q "this.dirty = true"
-git diff --quiet "$HARNESS_BASELINE" -- src/domain src/application src/mcp src/slack src/scheduler prisma docs README.md test
+git diff --quiet HEAD -- src/domain src/application src/mcp src/slack src/scheduler prisma docs README.md test
 ```
 
 ## AC 검증 방법

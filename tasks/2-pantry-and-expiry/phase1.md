@@ -56,7 +56,7 @@ CHECK 제약은 필요 없다. enum이 값을 제한한다.
 
 ### 3. 생성 호출의 파급
 
-아래 세 파일의 `ingredient.create` 호출에 `stockTracking: 'cubes',` 한 줄을 더한다. **이 phase에서 `prisma/` 밖에 더하는 것은 이 줄뿐이다.** AC가 `prisma/` 밖에서 바뀐 줄이 전부 `stockTracking`을 담는지 검사한다.
+아래 세 파일의 `ingredient.create` 호출에 `stockTracking: 'cubes',` 한 줄을 더한다. **이 phase에서 `prisma/` 밖에 더하는 것은 이 줄뿐이다.** AC가 `prisma/` 밖에서 더해진 줄이 전부 `stockTracking`을 담는지 검사한다. 기준은 HEAD(앞 phase의 커밋)다. `HARNESS_BASELINE`은 task 시작점이라 phase 0의 문서 변경까지 포함한다.
 
 | 파일 | 위치 |
 |---|---|
@@ -85,8 +85,8 @@ grep -q '@@map("stock_tracking")' prisma/schema.prisma
 grep -q 'stockTracking' prisma/schema.prisma
 ! grep -E 'stockTracking.*@default' prisma/schema.prisma
 test "$(ls -d prisma/migrations/*/ | wc -l)" -eq 7
-! git diff "$HARNESS_BASELINE" -- src test | grep -E '^[+-][^+-]' | grep -v stockTracking
-git diff --quiet "$HARNESS_BASELINE" -- src/domain src/application src/mcp src/slack src/scheduler docs README.md package.json
+! git diff HEAD -- src test | grep -E '^\+[^+]' | grep -v stockTracking
+git diff --quiet HEAD -- src/domain src/application src/mcp src/slack src/scheduler docs README.md package.json
 ```
 
 ## AC 검증 방법

@@ -139,12 +139,12 @@ grep -q "되돌리지 않는다" src/domain/deduction/deduction.spec.ts
 grep -q "상비" src/domain/forecast/shortage-forecast.spec.ts
 grep -q "3일 전" src/domain/stock/stock.spec.ts
 ! rg -n "from '@nestjs|new Date\(|Date\.now\(" src/domain
-! git diff "$HARNESS_BASELINE" -- src/application src/infrastructure src/mcp src/slack src/scheduler test | grep -E '^[+-][^+-]' | grep -v -i -E 'stockTracking|overdue|pendingDiscard|pending_discard|due_soon|due_today|due_tomorrow|daysLeft'
-git diff --quiet "$HARNESS_BASELINE" -- src/slack/templates/__snapshots__
-git diff --quiet "$HARNESS_BASELINE" -- prisma docs README.md package.json
+! git diff HEAD -- src/application src/infrastructure src/mcp src/slack src/scheduler test | grep -E '^\+[^+]' | grep -v -i -E 'stockTracking|overdue|pendingDiscard|pending_discard|due_soon|due_today|due_tomorrow|daysLeft'
+git diff --quiet HEAD -- src/slack/templates/__snapshots__
+git diff --quiet HEAD -- prisma docs README.md package.json
 ```
 
-`! git diff ... | grep -v ...`는 도메인 밖에서 바뀐 줄 가운데 위 식별자를 하나도 담지 않은 줄이 있으면 실패한다. 통과하려면 도메인 밖 변경이 3번의 치환뿐이어야 한다. 위 명령은 이 세션의 `pnpm test:int`를 요구하지 않는다. 통합 테스트는 컴파일만 맞으면 되고 phase 3의 AC가 돌린다.
+`! git diff HEAD ... | grep -v ...`는 도메인 밖에서 더해진 줄 가운데 위 식별자를 하나도 담지 않은 줄이 있으면 실패한다. 기준은 HEAD(phase 1의 커밋)다. `HARNESS_BASELINE`은 task 시작점이라 앞 phase의 변경까지 포함하므로 쓰지 않는다. 통과하려면 도메인 밖 변경이 3번의 치환뿐이어야 한다. 위 명령은 이 세션의 `pnpm test:int`를 요구하지 않는다. 통합 테스트는 컴파일만 맞으면 되고 phase 3의 AC가 돌린다.
 
 ## AC 검증 방법
 
@@ -153,7 +153,7 @@ git diff --quiet "$HARNESS_BASELINE" -- prisma docs README.md package.json
 ## 하지 말아야 할 것
 
 - `stockTracking`을 선택 필드로 두거나 `?? 'cubes'` 같은 기본값을 어디에도 두지 마라. 이유: 운영 데이터가 없는 호환 코드다(AGENTS.md 금지 2번). 기존 행은 phase 1의 마이그레이션이 이미 채웠다.
-- `stageLabel`의 기존 경우(`fresh`, 당일, 전일, 지남)가 돌려주는 문자열을 바꾸지 마라. 이유: 문구 변경은 phase 6의 v3에서 하고, 이 phase에서는 `git diff --quiet "$HARNESS_BASELINE" -- src/slack/templates/__snapshots__`가 통과해야 한다.
+- `stageLabel`의 기존 경우(`fresh`, 당일, 전일, 지남)가 돌려주는 문자열을 바꾸지 마라. 이유: 문구 변경은 phase 6의 v3에서 하고, 이 phase에서는 `git diff --quiet HEAD -- src/slack/templates/__snapshots__`가 통과해야 한다.
 - 도메인 밖에서 3번 표의 치환 외의 것을 고치지 마라. 이유: AC의 diff 검사가 실패한다. `nextExpiry`, `pantryIngredients`, `updateStockTracking`은 phase 3과 4의 일이다.
 - 상비 제외를 `summarizeStock`이나 `forecastShortage`의 호출자(애플리케이션)에서 하지 마라. 이유: ADR 0009 (b). 도메인이 한다.
 - `src/domain`에 프레임워크, DB, `new Date()`를 들이지 마라. 이유: AGENTS.md 계층 규약.

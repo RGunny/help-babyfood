@@ -84,7 +84,7 @@ grep -q "폐기 완료" src/slack/templates/__snapshots__/daily-brief.v3.json
 ! rg -n '폐기 대기|폐기대기|폐기 필요' src/slack
 ! rg -n 'EXPIRY_NOTICE_DAYS|daysBetween' src/slack/templates --glob '!*.spec.ts'
 ! rg -n "summarizeStock|forecastShortage|reconcileMeals|expiryStageOn" src/slack
-git diff --quiet "$HARNESS_BASELINE" -- src/domain src/application src/infrastructure src/mcp src/scheduler prisma docs README.md test
+git diff --quiet HEAD -- src/domain src/application src/infrastructure src/mcp src/scheduler prisma docs README.md test
 ```
 
 ## AC 검증 방법

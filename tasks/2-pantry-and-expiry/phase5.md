@@ -65,7 +65,7 @@ grep -q "stockTracking" src/mcp/tools/reaction.tools.ts
 grep -q "update_ingredient_stock_tracking" test/integration/mcp-tools.int-spec.ts
 grep -q "PANTRY_WITH_STOCK" test/integration/mcp-tools.int-spec.ts
 grep -q "PANTRY_INGREDIENT" test/integration/mcp-tools.int-spec.ts
-git diff --quiet "$HARNESS_BASELINE" -- src/domain src/application src/infrastructure src/slack src/scheduler prisma docs README.md
+git diff --quiet HEAD -- src/domain src/application src/infrastructure src/slack src/scheduler prisma docs README.md
 ```
 
 ## AC 검증 방법
