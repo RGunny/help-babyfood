@@ -13,7 +13,7 @@ export function registerAlertTools(server: McpServer, deps: ToolDeps, caller: Ca
     {
       title: '데일리 브리프',
       description:
-        '오늘 날짜와 일차, 끼니별 식단, 새 재료 관찰 안내, 재고현황과 소진 예상일, 부족 예측, 임계개수와 임계일 알람, 확인 필요 항목을 한 번에 돌려준다. 저장된 브리프를 읽는 것이 아니라 부를 때마다 계산한다.',
+        '오늘 날짜와 일차, 끼니별 식단, 새 재료 관찰 안내, 재고현황과 소진 예상일, 부족 예측, 임계개수와 임계일 알람, 상비 재료 목록, 확인 필요 항목을 한 번에 돌려준다. 저장된 브리프를 읽는 것이 아니라 부를 때마다 계산한다.',
       inputSchema: z.object({}),
     },
     async () =>
@@ -35,7 +35,9 @@ export function registerAlertTools(server: McpServer, deps: ToolDeps, caller: Ca
             overdue: row.overdue,
             weightMismatched: row.weightMismatched,
             depletionDate: row.depletionDate,
+            nextExpiry: row.nextExpiry,
           })),
+          pantryIngredients: brief.pantryIngredients.map((entry) => ({ ingredientName: entry.name })),
           shortages: brief.shortages.map((shortage) => ({
             ingredientName: shortage.name,
             plannedCubes: shortage.plannedCubes,

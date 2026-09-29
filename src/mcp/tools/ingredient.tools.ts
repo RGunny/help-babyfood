@@ -3,7 +3,7 @@ import * as z from 'zod/v4';
 import { Caller } from '../auth/caller.js';
 import { ToolDeps } from '../server.factory.js';
 import { toolResult } from '../tool-result.js';
-import { idempotencyKey, ingredientCategory } from './schemas.js';
+import { idempotencyKey, ingredientCategory, stockTracking } from './schemas.js';
 
 /**
  * 재료 마스터. 모든 차감이 이름을 여기로 풀기 때문에, 여기에 없는 이름은 입고에도 식단에도
@@ -60,5 +60,24 @@ export function registerIngredientTools(server: McpServer, deps: ToolDeps, calle
     },
     async (args) =>
       await toolResult(async () => await deps.ingredient.updateServingWeight({ ...caller, ...args })),
+  );
+
+  server.registerTool(
+    'update_ingredient_stock_tracking',
+    {
+      title: '재고 방식 변경',
+      description:
+        '큐브로 만들지 않고 늘 집에 있는 재료(땅콩버터, 계란, 밀가루)를 상비(pantry)로 바꾼다. 상비 재료는 자동 차감, 보류, 부족 예측, 재고 표에서 빠지고 도입 상태만 남는다. 잔여 큐브가 있으면 바꿀 수 없으니 먼저 실사 조정이나 폐기로 0을 만든다. cubes로 되돌리는 데는 조건이 없다.',
+      inputSchema: z.object({
+        idempotencyKey,
+        name: z.string().describe('기존 재료의 이름 또는 별칭.'),
+        stockTracking,
+      }),
+    },
+    async (args) =>
+      await toolResult(async () => {
+        const ingredient = await deps.ingredient.updateStockTracking({ ...caller, ...args });
+        return { ingredientName: ingredient.name, stockTracking: ingredient.stockTracking };
+      }),
   );
 }

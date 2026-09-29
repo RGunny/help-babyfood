@@ -32,6 +32,7 @@ const EXPECTED_TOOLS = [
   'register_ingredient',
   'add_ingredient_alias',
   'update_ingredient_serving_weight',
+  'update_ingredient_stock_tracking',
   'register_menu',
   'update_menu',
   'get_menus',
@@ -160,7 +161,7 @@ describe('재료와 메뉴', () => {
     });
 
     const statuses = await call('get_ingredient_introduction_status');
-    expect(statuses).toEqual([{ ingredientName: '브로콜리', status: { kind: 'not_introduced' } }]);
+    expect(statuses).toEqual([{ ingredientName: '브로콜리', status: { kind: 'not_introduced' }, stockTracking: 'cubes' }]);
   });
 
   it('별칭으로 가리켜도 같은 재료다', async () => {
@@ -726,6 +727,96 @@ describe('자동 차감과 미급여', () => {
     });
 
     expect(error.code).toBe('MEAL_NOT_FED');
+  });
+});
+
+describe('상비 재료', () => {
+  beforeEach(seedMasters);
+
+  it('재고 방식 변경 도구로 상비로 바꾸면 도입 상태 조회에 pantry로 보이고 재고 현황에서 사라진다', async () => {
+    const before = await call('get_stock_status');
+    expect(before.ingredients.map((row: any) => row.ingredientName)).toContain('애호박');
+
+    const changed = await call('update_ingredient_stock_tracking', {
+      idempotencyKey: nextKey(),
+      name: '애호박',
+      stockTracking: 'pantry',
+    });
+
+    expect(changed).toEqual({ ingredientName: '애호박', stockTracking: 'pantry' });
+    const statuses = await call('get_ingredient_introduction_status');
+    expect(statuses.find((row: any) => row.ingredientName === '애호박').stockTracking).toBe('pantry');
+    expect(statuses.find((row: any) => row.ingredientName === '소고기').stockTracking).toBe('cubes');
+    const after = await call('get_stock_status');
+    expect(after.ingredients.map((row: any) => row.ingredientName)).not.toContain('애호박');
+  });
+
+  it('잔여 큐브가 있는 재료를 상비로 바꾸면 도구 오류이고 오류 코드가 PANTRY_WITH_STOCK이다', async () => {
+    await call('register_cooked_batch', {
+      idempotencyKey: nextKey(),
+      ingredientName: '소고기',
+      cubeWeightGram: 10,
+      cookedOn: '2026-09-20',
+      cubes: 2,
+    });
+
+    const error = await callExpectingError('update_ingredient_stock_tracking', {
+      idempotencyKey: nextKey(),
+      name: '소고기',
+      stockTracking: 'pantry',
+    });
+
+    expect(error.code).toBe('PANTRY_WITH_STOCK');
+  });
+
+  it('상비 재료의 입고는 도구 오류이고 오류 코드가 PANTRY_INGREDIENT이다', async () => {
+    await call('update_ingredient_stock_tracking', {
+      idempotencyKey: nextKey(),
+      name: '애호박',
+      stockTracking: 'pantry',
+    });
+
+    const error = await callExpectingError('register_cooked_batch', {
+      idempotencyKey: nextKey(),
+      ingredientName: '애호박',
+      cubeWeightGram: 15,
+      cookedOn: '2026-09-20',
+      cubes: 4,
+    });
+
+    expect(error.code).toBe('PANTRY_INGREDIENT');
+  });
+
+  it('같은 멱등키로 재고 방식 변경을 두 번 부르면 응답이 같다', async () => {
+    const args = { idempotencyKey: nextKey(), name: '애호박', stockTracking: 'pantry' };
+
+    const first = await call('update_ingredient_stock_tracking', args);
+    const second = await call('update_ingredient_stock_tracking', args);
+
+    expect(second).toEqual(first);
+  });
+
+  it('브리프에 상비 재료 목록과 재고 표의 임계일이 실린다', async () => {
+    await call('update_ingredient_stock_tracking', {
+      idempotencyKey: nextKey(),
+      name: '애호박',
+      stockTracking: 'pantry',
+    });
+    await call('register_cooked_batch', {
+      idempotencyKey: nextKey(),
+      ingredientName: '소고기',
+      cubeWeightGram: 10,
+      cookedOn: '2026-09-20',
+      cubes: 2,
+    });
+
+    const brief = await call('get_daily_brief');
+
+    expect(brief.pantryIngredients).toEqual([{ ingredientName: '애호박' }]);
+    expect(brief.stock.map((row: any) => row.ingredientName)).not.toContain('애호박');
+    const beef = brief.stock.find((row: any) => row.ingredientName === '소고기');
+    expect(beef.nextExpiry).toEqual({ date: '2026-10-04', stage: { kind: 'fresh' } });
+    expect(brief.stock.find((row: any) => row.ingredientName === '브로콜리').nextExpiry).toBeNull();
   });
 });
 

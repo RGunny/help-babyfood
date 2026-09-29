@@ -37,13 +37,17 @@ export function registerReactionTools(server: McpServer, deps: ToolDeps, caller:
     {
       title: '재료 도입 상태',
       description:
-        '등록된 모든 재료의 도입 상태를 한 줄씩 돌려준다. 미도입, 검증중(이상 없음 횟수와 미기록 횟수), 검증완료, 반응있음 가운데 하나다. 재료 목록 조회로도 쓴다.',
+        '등록된 모든 재료의 도입 상태를 한 줄씩 돌려준다. 미도입, 검증중(이상 없음 횟수와 미기록 횟수), 검증완료, 반응있음 가운데 하나다. 재료 목록 조회로도 쓴다. 재고 방식(cubes, pantry)도 함께 준다.',
       inputSchema: z.object({}),
     },
     async () =>
       await toolResult(async () => {
         const statuses = await deps.reaction.getIntroductionStatus(caller.householdId);
-        return statuses.map((entry) => ({ ingredientName: entry.name, status: entry.status }));
+        return statuses.map((entry) => ({
+          ingredientName: entry.name,
+          status: entry.status,
+          stockTracking: entry.stockTracking,
+        }));
       }),
   );
 }

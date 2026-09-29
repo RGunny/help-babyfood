@@ -43,6 +43,8 @@ export const mealSlot = z.enum(['morning', 'afternoon']).describe('오전(mornin
 
 export const ingredientCategory = z.enum(['base', 'meat', 'vegetable', 'high_risk_allergen']);
 
+export const stockTracking = z.enum(['cubes', 'pantry']);
+
 export const positiveCubes = z.number().int().positive();
 
 /** What a parent says a meal is made of. Names, never ids: the server resolves them. */

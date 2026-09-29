@@ -42,7 +42,7 @@ export function registerStockTools(server: McpServer, deps: ToolDeps, caller: Ca
     {
       title: '재고 현황',
       description:
-        '재료별 합계와 배치 내역, 임계일 알람 대상을 돌려준다. 폐기 대기 큐브도 합계에 든다.',
+        '재료별 합계와 배치 내역, 임계일 알람 대상을 돌려준다. 임계일이 지난 큐브도 합계에 든다. 상비 재료는 나오지 않는다.',
       inputSchema: z.object({}),
     },
     async () =>
@@ -101,7 +101,7 @@ export function registerStockTools(server: McpServer, deps: ToolDeps, caller: Ca
     {
       title: '폐기 완료',
       description:
-        '냉동고에서 실제로 버린 뒤에 부른다. 임계일이 지났다는 이유만으로는 재고가 줄지 않으므로, 이것이 폐기 대기 알람을 끝내는 유일한 방법이다.',
+        '냉동고에서 실제로 버린 뒤에 부른다. 임계일이 지났다는 이유만으로는 재고가 줄지 않으므로, 이것이 임계일 알람을 끝내는 유일한 방법이다.',
       inputSchema: z.object({
         idempotencyKey,
         batchId: z.string(),
