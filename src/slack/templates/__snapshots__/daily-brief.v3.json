@@ -73,7 +73,11 @@
           },
           {
             "type": "raw_text",
-            "text": "폐기대기"
+            "text": "임계 지남"
+          },
+          {
+            "type": "raw_text",
+            "text": "임계일"
           },
           {
             "type": "raw_text",
@@ -87,7 +91,7 @@
         [
           {
             "type": "raw_text",
-            "text": "소고기"
+            "text": "⏰ 소고기"
           },
           {
             "type": "raw_number",
@@ -103,6 +107,10 @@
             "type": "raw_number",
             "value": 2,
             "text": "2"
+          },
+          {
+            "type": "raw_text",
+            "text": "09-16"
           },
           {
             "type": "raw_text",
@@ -116,7 +124,7 @@
         [
           {
             "type": "raw_text",
-            "text": "브로콜리"
+            "text": "⏰ 브로콜리"
           },
           {
             "type": "raw_number",
@@ -132,6 +140,10 @@
             "type": "raw_number",
             "value": 3,
             "text": "3"
+          },
+          {
+            "type": "raw_text",
+            "text": "09-18"
           },
           {
             "type": "raw_text",
@@ -161,6 +173,10 @@
             "type": "raw_number",
             "value": 0,
             "text": "0"
+          },
+          {
+            "type": "raw_text",
+            "text": "10-08"
           },
           {
             "type": "raw_text",
@@ -196,6 +212,10 @@
             "text": "–"
           },
           {
+            "type": "raw_text",
+            "text": "–"
+          },
+          {
             "type": "raw_number",
             "value": 2,
             "text": "2"
@@ -204,7 +224,7 @@
         [
           {
             "type": "raw_text",
-            "text": "오트밀"
+            "text": "⏰ 오트밀"
           },
           {
             "type": "raw_number",
@@ -220,6 +240,10 @@
             "type": "raw_number",
             "value": 0,
             "text": "0"
+          },
+          {
+            "type": "raw_text",
+            "text": "09-28"
           },
           {
             "type": "raw_text",
@@ -253,6 +277,10 @@
           "is_wrapped": false
         },
         {
+          "align": "center",
+          "is_wrapped": false
+        },
+        {
           "align": "right",
           "is_wrapped": false
         }
@@ -263,16 +291,9 @@
       "elements": [
         {
           "type": "mrkdwn",
-          "text": "재고 0: 계란"
+          "text": "재고 0: 당근\n상비: 계란"
         }
       ]
-    },
-    {
-      "type": "section",
-      "text": {
-        "type": "mrkdwn",
-        "text": "*임계일 알람*\n• 소고기 2026-09-02 조리분 2개 · 기한 2026-09-16 · 기한 10일 초과, 폐기 대기\n• 브로콜리 2026-09-04 조리분 3개 · 기한 2026-09-18 · 기한 8일 초과, 폐기 대기"
-      }
     },
     {
       "type": "actions",

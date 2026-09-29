@@ -15,16 +15,22 @@ import {
   section,
   truncate,
 } from './blocks.js';
-import { IngredientRow, attentionLines, expiryLine, stockRowsOf } from './brief-lines.js';
+import { IngredientRow, attentionLines, isExpiryHighlighted, pantryLine, stockRowsOf } from './brief-lines.js';
 import { SLOT_LABEL, shortDate } from './labels.js';
 import { MessageTemplate } from './message-template.js';
 import { TableColumn, table } from './table.js';
 
 const STOCK_COLUMNS: readonly TableColumn<IngredientRow>[] = [
-  { header: '재료', wrapped: true, cell: (row) => row.name },
+  // raw_text 셀은 굵게가 없어서 기호만 붙인다(ADR 0009).
+  { header: '재료', wrapped: true, cell: (row) => (isExpiryHighlighted(row) ? `⏰ ${row.name}` : row.name) },
   { header: '합계', align: 'right', cell: (row) => row.total },
   { header: '가용', align: 'right', cell: (row) => row.fresh },
-  { header: '폐기대기', align: 'right', cell: (row) => row.overdue },
+  { header: '임계 지남', align: 'right', cell: (row) => row.overdue },
+  {
+    header: '임계일',
+    align: 'center',
+    cell: (row) => (row.nextExpiry === null ? null : shortDate(row.nextExpiry.date)),
+  },
   {
     header: '소진 예상',
     align: 'center',
@@ -37,13 +43,13 @@ const STOCK_COLUMNS: readonly TableColumn<IngredientRow>[] = [
  * Chapter 5 of the plan as a Slack message.
  *
  * Every part of the brief is one function returning its blocks, joined in reading order. Adding a
- * part is one more line in the list. Stock and threshold are one table keyed by ingredient; the
- * shortage forecast is left to MCP, since the depletion date already says when an ingredient
+ * part is one more line in the list. Stock, expiry and threshold are one table keyed by
+ * ingredient, with the discard buttons right under it; the shortage forecast is left to MCP, since the depletion date already says when an ingredient
  * runs out (ADR 0007).
  */
 export const dailyBriefTemplate: MessageTemplate<DailyBrief> = {
   key: 'daily_brief',
-  version: 2,
+  version: 3,
   render(brief) {
     const dayPart = brief.dayNumber === null ? '' : ` · ${brief.dayNumber}일차`;
     const title = `${brief.date} 이유식 브리프${dayPart}`;
@@ -53,7 +59,7 @@ export const dailyBriefTemplate: MessageTemplate<DailyBrief> = {
       ...newIngredientBlocks(brief.newIngredients),
       divider(),
       ...stockBlocks(brief),
-      ...expiryBlocks(brief.expiryAlerts),
+      ...discardButtons(brief.expiryAlerts),
       ...attentionBlocks(brief.attention),
     ];
     return { text: title, blocks: blocks.slice(0, MAX_BLOCKS) };
@@ -123,16 +129,20 @@ function newIngredientBlocks(entries: readonly BriefNewIngredient[]): SlackBlock
   ];
 }
 
-/** The stock table, with the rows that have nothing in them named on one line underneath. */
+/**
+ * The stock table, with the rows that have nothing in them and the ingredients kept at hand named
+ * on lines underneath.
+ */
 function stockBlocks(brief: DailyBrief): SlackBlock[] {
   const { shown, empty } = stockRowsOf(brief);
   const emptyNote = empty.length > 0 ? `재고 0: ${empty.map((row) => escape(row.name)).join(', ')}` : null;
+  const pantryNote = pantryLine(brief, escape);
 
-  if (shown.length === 0) return [section('*재고현황*\n재고가 없습니다.'), ...notes([emptyNote])];
+  if (shown.length === 0) return [section('*재고현황*\n재고가 없습니다.'), ...notes([emptyNote, pantryNote])];
 
   const { block, omitted } = table(STOCK_COLUMNS, shown);
   const omittedNote = omitted > 0 ? `…외 ${omitted}개 재료는 표에서 생략했습니다.` : null;
-  return [section('*재고현황*'), block, ...notes([omittedNote, emptyNote])];
+  return [section('*재고현황*'), block, ...notes([omittedNote, emptyNote, pantryNote])];
 }
 
 /** The lines under the table, as one context block, or nothing when there is nothing to say. */
@@ -141,13 +151,8 @@ function notes(lines: readonly (string | null)[]): SlackBlock[] {
   return kept.length > 0 ? [context(kept.join('\n'))] : [];
 }
 
-function expiryBlocks(alerts: readonly BriefExpiryAlert[]): SlackBlock[] {
-  if (alerts.length === 0) return [];
-  return [linesSection('임계일 알람', alerts.map((alert) => `• ${expiryLine(alert, escape)}`)), ...discardButtons(alerts)];
-}
-
 /**
- * One "폐기 완료" button per batch waiting to be thrown away, oldest first.
+ * One "폐기 완료" button per batch past its expiry date, oldest first.
  *
  * An actions block holds 25 elements. Past that the oldest 25 get a button and the rest are named
  * in a line underneath: the oldest are the ones most overdue, and a second block would only move
@@ -169,7 +174,7 @@ function discardButtons(alerts: readonly BriefExpiryAlert[]): SlackBlock[] {
   ];
   const rest = pending.length - shown.length;
   if (rest > 0) {
-    blocks.push(context(`폐기 대기 배치가 ${rest}개 더 있습니다. 위 배치를 처리하면 다음 브리프에 버튼이 붙습니다.`));
+    blocks.push(context(`임계일이 지난 배치가 ${rest}개 더 있습니다. 위 배치를 처리하면 다음 브리프에 버튼이 붙습니다.`));
   }
   return blocks;
 }

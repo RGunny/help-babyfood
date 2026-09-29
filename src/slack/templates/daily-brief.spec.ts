@@ -212,11 +212,11 @@ describe('브리프 렌더링', () => {
       );
       expect(discards).toHaveLength(MAX_ACTION_ELEMENTS);
       expect(discards[0].text.text).toContain('2026-08-01');
-      expect(JSON.stringify(blocks)).toContain('폐기 대기 배치가 75개 더 있습니다');
+      expect(JSON.stringify(blocks)).toContain('임계일이 지난 배치가 75개 더 있습니다');
     });
   });
 
-  it('폐기 대기 배치마다 폐기 버튼이 하나이고 값은 그 배치를 가리킨다', () => {
+  it('임계일이 지난 배치마다 폐기 버튼이 하나이고 값은 그 배치를 가리킨다', () => {
     const alerts = [
       ...overdue(3),
       { ...overdue(1)[0], stage: { kind: 'due_soon', daysLeft: 0 } } satisfies BriefExpiryAlert,
@@ -291,8 +291,8 @@ describe('브리프 렌더링', () => {
       );
 
       expect(tableRows(blocks)).toEqual([
-        ['재료', '합계', '가용', '폐기대기', '소진 예상', '임계'],
-        ['소고기', '12', '10', '2', '–', '–'],
+        ['재료', '합계', '가용', '임계 지남', '임계일', '소진 예상', '임계'],
+        ['소고기', '12', '10', '2', '–', '–', '–'],
       ]);
     });
 
@@ -311,16 +311,18 @@ describe('브리프 렌더링', () => {
         }),
       );
 
-      expect(tableRows(blocks)[1]).toEqual(['오이', '1', '1', '0', '09-28', '3']);
+      expect(tableRows(blocks)[1]).toEqual(['오이', '1', '1', '0', '–', '09-28', '3']);
     });
 
-    it('소진 예상일이 빠른 재료, 임계개수에 닿은 재료, 폐기 대기가 있는 재료, 나머지 순이다', () => {
+    it('소진 예상일이 빠른 재료, 임계개수에 닿은 재료, 임계일이 임박하거나 지난 재료, 나머지 순이다', () => {
       const threshold = stockRow('임계');
       const { blocks } = renderBrief(
         brief({
           stock: [
             stockRow('나머지'),
-            stockRow('폐기대기', { overdue: 1 }),
+            stockRow('임박', {
+              nextExpiry: { date: localDate('2026-09-24'), stage: { kind: 'due_soon', daysLeft: 2 } },
+            }),
             threshold,
             stockRow('늦게 소진', { depletionDate: localDate('2026-10-05') }),
             stockRow('먼저 소진', { depletionDate: localDate('2026-09-25') }),
@@ -334,7 +336,7 @@ describe('브리프 렌더링', () => {
         '먼저 소진',
         '늦게 소진',
         '임계',
-        '폐기대기',
+        '⏰ 임박',
         '나머지',
       ]);
     });
@@ -386,6 +388,70 @@ describe('브리프 렌더링', () => {
     });
   });
 
+  describe('임계일 강조와 상비 재료', () => {
+    it('임계일이 3일 안이거나 지난 재료는 재료 칸에 ⏰가 붙는다', () => {
+      const { blocks } = renderBrief(
+        brief({
+          stock: [
+            stockRow('여유', { nextExpiry: { date: localDate('2026-09-26'), stage: { kind: 'fresh' } } }),
+            stockRow('임박', { nextExpiry: { date: localDate('2026-09-25'), stage: { kind: 'due_soon', daysLeft: 3 } } }),
+            stockRow('지남', { nextExpiry: { date: localDate('2026-09-20'), stage: { kind: 'overdue', overdueDays: 2 } } }),
+          ],
+        }),
+      );
+
+      expect(tableRows(blocks).map(([name]) => name)).toEqual(['재료', '⏰ 임박', '⏰ 지남', '여유']);
+    });
+
+    it('임계일 칸은 가장 이른 배치의 임계일이고 배치가 없으면 –다', () => {
+      const cucumber = stockRow('오이', { total: 0, fresh: 0 });
+      const { blocks } = renderBrief(
+        brief({
+          stock: [stockRow('쌀', { nextExpiry: { date: localDate('2026-10-03'), stage: { kind: 'fresh' } } }), cucumber],
+          thresholdAlerts: [{ ingredientId: cucumber.ingredientId, name: '오이', total: 0, thresholdCubes: 2 }],
+        }),
+      );
+
+      expect(tableRows(blocks).map((row) => [row[0], row[4]])).toEqual([
+        ['재료', '임계일'],
+        ['오이', '–'],
+        ['쌀', '10-03'],
+      ]);
+    });
+
+    it('상비 재료는 표 아래 한 줄에 이름만 적힌다', () => {
+      const { blocks } = renderBrief(
+        brief({
+          stock: [stockRow('쌀'), stockRow('오이', { total: 0, fresh: 0 })],
+          pantryIngredients: [
+            { ingredientId: randomUUID(), name: '땅콩버터' },
+            { ingredientId: randomUUID(), name: '계란' },
+            { ingredientId: randomUUID(), name: '밀가루' },
+          ],
+        }),
+      );
+
+      expect(tableRows(blocks).map(([name]) => name)).toEqual(['재료', '쌀']);
+      expect(contextText(blocks)).toBe('재고 0: 오이\n상비: 땅콩버터, 계란, 밀가루');
+    });
+
+    it('임계일 목록은 없고 폐기 버튼은 재고 표 바로 뒤에 온다', () => {
+      const alerts = overdue(2);
+      const { blocks } = renderBrief(
+        brief({ stock: [stockRow('쌀')], expiryAlerts: alerts, attention: { ...brief().attention, planRunwayShort: true } }),
+      );
+
+      const tableIndex = blocks.findIndex((block) => block.type === 'table');
+      const discards = blocks[tableIndex + 1] as ActionsBlock;
+      expect(discards.type).toBe('actions');
+      expect((discards.elements as Button[]).map((button) => button.text.text)).toEqual([
+        `폐기 완료: ${alerts[1].name} ${alerts[1].cookedOn}`,
+        `폐기 완료: ${alerts[0].name} ${alerts[0].cookedOn}`,
+      ]);
+      expect(JSON.stringify(blocks)).not.toContain('임계일 알람');
+    });
+  });
+
   it('새 재료가 있으면 관찰 안내 문구가 들어간다', () => {
     const { blocks } = renderBrief(
       brief({ newIngredients: [{ ingredientId: randomUUID(), name: '완두콩', slot: 'morning', exposureNumber: 2 }] }),
@@ -432,10 +498,6 @@ describe('브리프 렌더링', () => {
           },
         ],
         thresholdAlerts: [{ ingredientId, name: '오이', total: 1, thresholdCubes: 3 }],
-        expiryAlerts: [
-          { ...overdue(1)[0], name: '애호박', stage: { kind: 'due_soon', daysLeft: 1 } },
-          { ...overdue(1)[0], name: '당근', stage: { kind: 'fresh' } },
-        ],
         attention: {
           heldDeductions: [{ ingredientId, name: '소고기', cubes: 1, date: DATE, slot: null }],
           unrecordedReactions: [{ ingredientId, name: '완두콩', date: DATE, slot: 'morning' }],
@@ -458,8 +520,6 @@ describe('브리프 렌더링', () => {
     );
 
     const text = allText(blocks);
-    expect(text).toContain('내일 기한');
-    expect(text).toContain('기한 여유');
     expect(text).toContain('재고 부족으로 보류된 차감: 소고기 1개 (2026-09-22)');
     expect(text).toContain('반응 미기록: 완두콩 (2026-09-22 오전)');
     expect(text).toContain('반응 있었던 재료가 식단에 있음: 달걀 (2026-09-22 오후)');
@@ -468,7 +528,7 @@ describe('브리프 렌더링', () => {
   });
 });
 
-describe('브리프 v2 페이로드', () => {
+describe('브리프 v3 페이로드', () => {
   // 레이아웃이 바뀌면 이 파일이 바뀐다. 그때 dailyBriefTemplate.version도 올렸는지 본다(ADR 0007).
   it('2026-09-26 운영 브리프와 같은 모양의 입력이 고정된 페이로드를 낸다', async () => {
     const id = (n: number) => `0199a1b2-c3d4-7e5f-8a9b-${String(n).padStart(12, '0')}`;
@@ -479,6 +539,7 @@ describe('브리프 v2 페이로드', () => {
       fresh: number,
       overdue: number,
       depletion: string | null,
+      nextExpiry: BriefStockRow['nextExpiry'] = null,
     ) => ({
       ingredientId: id(n),
       name,
@@ -487,7 +548,7 @@ describe('브리프 v2 페이로드', () => {
       overdue,
       weightMismatched: 0,
       depletionDate: depletion === null ? null : localDate(depletion),
-      nextExpiry: null,
+      nextExpiry,
     });
     const discard = (
       n: number,
@@ -529,13 +590,14 @@ describe('브리프 v2 페이로드', () => {
           { ingredientId: id(2), name: '오트밀', slot: 'morning', exposureNumber: 1 },
         ],
         stock: [
-          row(1, '쌀', 5, 5, 0, '2026-10-01'),
-          row(2, '오트밀', 15, 15, 0, null),
-          row(3, '소고기', 2, 0, 2, '2026-09-28'),
-          row(4, '브로콜리', 3, 0, 3, '2026-09-30'),
-          row(5, '계란', 0, 0, 0, null),
+          row(1, '쌀', 5, 5, 0, '2026-10-01', { date: localDate('2026-10-08'), stage: { kind: 'fresh' } }),
+          row(2, '오트밀', 15, 15, 0, null, { date: localDate('2026-09-28'), stage: { kind: 'due_soon', daysLeft: 2 } }),
+          row(3, '소고기', 2, 0, 2, '2026-09-28', { date: localDate('2026-09-16'), stage: { kind: 'overdue', overdueDays: 10 } }),
+          row(4, '브로콜리', 3, 0, 3, '2026-09-30', { date: localDate('2026-09-18'), stage: { kind: 'overdue', overdueDays: 8 } }),
+          row(5, '당근', 0, 0, 0, null),
           row(6, '오이', 0, 0, 0, null),
         ],
+        pantryIngredients: [{ ingredientId: id(7), name: '계란' }],
         thresholdAlerts: [{ ingredientId: id(6), name: '오이', total: 0, thresholdCubes: 2 }],
         expiryAlerts: [
           discard(3, '소고기', '2026-09-02', '2026-09-16', 2, 10),
@@ -544,6 +606,6 @@ describe('브리프 v2 페이로드', () => {
       }),
     );
 
-    await expect(`${JSON.stringify(message, null, 2)}\n`).toMatchFileSnapshot('./__snapshots__/daily-brief.v2.json');
+    await expect(`${JSON.stringify(message, null, 2)}\n`).toMatchFileSnapshot('./__snapshots__/daily-brief.v3.json');
   });
 });

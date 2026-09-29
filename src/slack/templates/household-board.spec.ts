@@ -67,14 +67,14 @@ const BRIEF: DailyBrief = {
   slots: [],
   newIngredients: [],
   stock: [
-    { ingredientId: id(1), name: '쌀', total: 5, fresh: 5, overdue: 0, weightMismatched: 0, depletionDate: localDate('2026-10-01'), nextExpiry: null },
-    { ingredientId: id(2), name: '오트밀', total: 13, fresh: 13, overdue: 0, weightMismatched: 0, depletionDate: null, nextExpiry: null },
-    { ingredientId: id(3), name: '소고기', total: 16, fresh: 16, overdue: 0, weightMismatched: 0, depletionDate: localDate('2026-10-12'), nextExpiry: null },
-    { ingredientId: id(4), name: '브로콜리', total: 3, fresh: 0, overdue: 3, weightMismatched: 0, depletionDate: localDate('2026-09-30'), nextExpiry: null },
-    { ingredientId: id(5), name: '계란', total: 0, fresh: 0, overdue: 0, weightMismatched: 0, depletionDate: null, nextExpiry: null },
+    { ingredientId: id(1), name: '쌀', total: 5, fresh: 5, overdue: 0, weightMismatched: 0, depletionDate: localDate('2026-10-01'), nextExpiry: { date: localDate('2026-10-06'), stage: { kind: 'fresh' } } },
+    { ingredientId: id(2), name: '오트밀', total: 13, fresh: 13, overdue: 0, weightMismatched: 0, depletionDate: null, nextExpiry: { date: localDate('2026-09-28'), stage: { kind: 'due_soon', daysLeft: 2 } } },
+    { ingredientId: id(3), name: '소고기', total: 16, fresh: 16, overdue: 0, weightMismatched: 0, depletionDate: localDate('2026-10-12'), nextExpiry: { date: localDate('2026-10-08'), stage: { kind: 'fresh' } } },
+    { ingredientId: id(4), name: '브로콜리', total: 3, fresh: 0, overdue: 3, weightMismatched: 0, depletionDate: localDate('2026-09-30'), nextExpiry: { date: localDate('2026-09-18'), stage: { kind: 'overdue', overdueDays: 8 } } },
+    { ingredientId: id(5), name: '당근', total: 0, fresh: 0, overdue: 0, weightMismatched: 0, depletionDate: null, nextExpiry: null },
     { ingredientId: id(6), name: '오이', total: 0, fresh: 0, overdue: 0, weightMismatched: 0, depletionDate: null, nextExpiry: null },
   ],
-  pantryIngredients: [],
+  pantryIngredients: [{ ingredientId: id(8), name: '계란' }],
   shortages: [],
   thresholdAlerts: [{ ingredientId: id(6), name: '오이', total: 0, thresholdCubes: 2 }],
   expiryAlerts: [
@@ -110,10 +110,10 @@ function board(overrides: Partial<HouseholdBoard> = {}): HouseholdBoard {
 }
 
 describe('상태판 캔버스', () => {
-  it('세 주의 달력과 재고, 임계일, 확인 필요를 마크다운으로 낸다', async () => {
+  it('세 주의 달력과 재고, 확인 필요를 마크다운으로 낸다', async () => {
     const markdown = householdBoardTemplate.render(board());
 
-    await expect(markdown).toMatchFileSnapshot('./__snapshots__/household-board.v2.md');
+    await expect(markdown).toMatchFileSnapshot('./__snapshots__/household-board.v3.md');
   });
 
   it('오늘 열의 머리만 굵고 ▶가 붙는다', () => {
@@ -149,7 +149,7 @@ describe('상태판 캔버스', () => {
       board({ brief: { ...BRIEF, stock: BRIEF.stock.filter((row) => row.total === 0), thresholdAlerts: [] } }),
     );
 
-    expect(markdown).toContain('## 재고\n재고가 없습니다.\n_재고 0: 계란, 오이_');
+    expect(markdown).toContain('## 재고\n재고가 없습니다.\n_재고 0: 당근, 오이_\n_상비: 계란_');
   });
 
   it('재고 표는 300셀 안에서 자르고 뺀 수를 적는다', () => {
@@ -165,10 +165,10 @@ describe('상태판 캔버스', () => {
     }));
     const markdown = householdBoardTemplate.render(board({ brief: { ...BRIEF, stock, thresholdAlerts: [] } }));
 
-    // 6열이라 머리 행을 포함해 50행, 재료는 49개까지다.
-    expect(markdown).toContain('| 재료48 |');
-    expect(markdown).not.toContain('| 재료49 |');
-    expect(markdown).toContain('_…외 11개 재료는 표에서 생략했습니다._');
+    // 7열이라 머리 행을 포함해 42행, 재료는 41개까지다.
+    expect(markdown).toContain('| 재료40 |');
+    expect(markdown).not.toContain('| 재료41 |');
+    expect(markdown).toContain('_…외 19개 재료는 표에서 생략했습니다._');
   });
 
   it('이름의 | 와 * 는 표와 서식을 깨지 않게 이스케이프된다', () => {
@@ -182,19 +182,35 @@ describe('상태판 캔버스', () => {
     expect(markdown).toContain('a\\|b\\*c');
   });
 
-  it('임계일과 확인 필요가 비면 없습니다로 적는다', () => {
+  it('확인 필요가 비면 없습니다로 적는다', () => {
     const markdown = householdBoardTemplate.render(
-      board({
-        brief: {
-          ...BRIEF,
-          expiryAlerts: [],
-          attention: { ...BRIEF.attention, unrecordedReactions: [], ruleWarnings: [] },
-        },
-      }),
+      board({ brief: { ...BRIEF, attention: { ...BRIEF.attention, unrecordedReactions: [], ruleWarnings: [] } } }),
     );
 
-    expect(markdown).toContain('## 임계일\n없습니다.');
     expect(markdown).toContain('## 확인 필요\n없습니다.');
+  });
+
+  it('임계일이 임박하거나 지난 행은 재료명이 굵고 ⏰가 붙는다', () => {
+    const markdown = householdBoardTemplate.render(board());
+
+    expect(markdown).toContain('| **⏰ 오트밀** | 13 | 13 | 0 | 09-28 | – | – |');
+    expect(markdown).toContain('| **⏰ 브로콜리** | 3 | 0 | 3 | 09-18 | 09-30 | – |');
+    expect(markdown).toContain('| 쌀 | 5 | 5 | 0 | 10-06 | 10-01 | – |');
+  });
+
+  it('상비 재료는 표 아래 한 줄이다', () => {
+    const markdown = householdBoardTemplate.render(
+      board({ brief: { ...BRIEF, pantryIngredients: [{ ingredientId: id(8), name: '땅콩버터' }, { ingredientId: id(9), name: '계란' }] } }),
+    );
+
+    expect(markdown).toContain('_재고 0: 당근_\n_상비: 땅콩버터, 계란_\n\n## 확인 필요');
+  });
+
+  it('임계일 구역이 없다', () => {
+    const markdown = householdBoardTemplate.render(board());
+
+    expect(markdown).not.toMatch(/^## 임계일/m);
+    expect(markdown.match(/^## .*/gm)).toEqual(['## 식단', '## 재고', '## 확인 필요']);
   });
 
   it('오늘 급여일이 아니면 제목 줄이 그렇게 말한다', () => {

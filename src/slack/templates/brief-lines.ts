@@ -1,5 +1,5 @@
-import { BriefAttention, BriefExpiryAlert, BriefStockRow, DailyBrief } from '../../application/daily-brief.js';
-import { SLOT_LABEL, RULE_WARNING_LABEL, stageLabel } from './labels.js';
+import { BriefAttention, BriefStockRow, DailyBrief } from '../../application/daily-brief.js';
+import { SLOT_LABEL, RULE_WARNING_LABEL } from './labels.js';
 
 /**
  * The lines and rows the brief and the board share, with no markup of their own.
@@ -36,8 +36,8 @@ export function stockRowsOf(brief: DailyBrief): StockRows {
 }
 
 /**
- * Soonest to run out first, then those that reached their threshold, then those with batches
- * waiting to be thrown away. Within a group the order of `brief.stock` is kept.
+ * Soonest to run out first, then those that reached their threshold, then those whose earliest
+ * batch is near or past its expiry date. Within a group the order of `brief.stock` is kept.
  */
 export function byUrgency(a: IngredientRow, b: IngredientRow): number {
   if (a.depletionDate !== b.depletionDate) {
@@ -47,11 +47,21 @@ export function byUrgency(a: IngredientRow, b: IngredientRow): number {
   }
   const threshold = Number(b.thresholdCubes !== null) - Number(a.thresholdCubes !== null);
   if (threshold !== 0) return threshold;
-  return Number(b.overdue > 0) - Number(a.overdue > 0);
+  return Number(isExpiryHighlighted(b)) - Number(isExpiryHighlighted(a));
 }
 
-export function expiryLine(alert: BriefExpiryAlert, escape: Escape): string {
-  return `${escape(alert.name)} ${alert.cookedOn} 조리분 ${alert.remaining}개 · 기한 ${alert.expiryDate} · ${stageLabel(alert.stage)}`;
+/**
+ * Whether the row is marked for its expiry date. The domain already staged the earliest batch, so
+ * the templates read the stage and never count days themselves (ADR 0009).
+ */
+export function isExpiryHighlighted(row: IngredientRow): boolean {
+  return row.nextExpiry !== null && row.nextExpiry.stage.kind !== 'fresh';
+}
+
+/** `상비: 땅콩버터, 계란, 밀가루`, or null when no ingredient is kept at hand. */
+export function pantryLine(brief: DailyBrief, escape: Escape): string | null {
+  if (brief.pantryIngredients.length === 0) return null;
+  return `상비: ${brief.pantryIngredients.map((ingredient) => escape(ingredient.name)).join(', ')}`;
 }
 
 export function attentionLines(attention: BriefAttention, escape: Escape): string[] {
