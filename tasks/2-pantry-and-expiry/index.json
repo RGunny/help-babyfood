@@ -1,0 +1,112 @@
+{
+  "project": "help-babyfood",
+  "task": "pantry-and-expiry",
+  "prompt": "상태판에 확인필요부분 재고부족으로보류된차감 --> 이거 내가 계란이랑 기타 등등 재고 없애라한거 아직도개발이안됐네. 확인해서 조치해. 그리고 임계일은 폐기기한이랑 관련없는거 알지? 폐기는 그냥 추가정보야",
+  "phases": [
+    {
+      "phase": 0,
+      "name": "docs",
+      "scope": [
+        "docs/",
+        "README.md"
+      ],
+      "model": "claude-fable-5-1"
+    },
+    {
+      "phase": 1,
+      "name": "schema",
+      "scope": [
+        "prisma/"
+      ],
+      "requires": [
+        "docker"
+      ],
+      "model": "claude-opus-5-5"
+    },
+    {
+      "phase": 2,
+      "name": "domain",
+      "scope": [
+        "src/domain/",
+        "src/application/ports/household-write.port.ts",
+        "src/application/ingredient.service.ts",
+        "src/application/daily-brief.ts",
+        "src/application/daily-brief.spec.ts",
+        "src/application/household-board.spec.ts",
+        "src/application/feeding-history.spec.ts",
+        "src/application/rules.spec.ts",
+        "src/infrastructure/prisma/mappers/state.mapper.ts",
+        "src/infrastructure/prisma/mappers/state.mapper.spec.ts",
+        "src/infrastructure/prisma/household-writer.ts",
+        "src/mcp/tools/stock.tools.ts",
+        "src/mcp/tools/alert.tools.ts",
+        "src/slack/templates/labels.ts",
+        "src/slack/templates/brief-lines.ts",
+        "src/slack/templates/daily-brief.ts",
+        "src/slack/templates/daily-brief.spec.ts",
+        "src/slack/templates/household-board.ts",
+        "src/slack/templates/household-board.spec.ts",
+        "test/integration/"
+      ],
+      "unfreeze": [
+        "src/domain/"
+      ],
+      "model": "claude-fable-5-1"
+    },
+    {
+      "phase": 3,
+      "name": "persistence",
+      "scope": [
+        "src/infrastructure/"
+      ],
+      "requires": [
+        "docker"
+      ],
+      "model": "claude-opus-5-5"
+    },
+    {
+      "phase": 4,
+      "name": "application",
+      "scope": [
+        "src/application/",
+        "test/integration/"
+      ],
+      "requires": [
+        "docker"
+      ],
+      "model": "claude-opus-5-5"
+    },
+    {
+      "phase": 5,
+      "name": "mcp",
+      "scope": [
+        "src/mcp/",
+        "test/integration/"
+      ],
+      "requires": [
+        "docker"
+      ],
+      "model": "claude-opus-5-5"
+    },
+    {
+      "phase": 6,
+      "name": "slack",
+      "scope": [
+        "src/slack/",
+        "src/scripts/"
+      ],
+      "model": "claude-opus-5-5"
+    },
+    {
+      "phase": 7,
+      "name": "break-it",
+      "scope": [
+        "tasks/2-pantry-and-expiry/"
+      ],
+      "requires": [
+        "docker"
+      ],
+      "model": "claude-opus-5-5"
+    }
+  ]
+}
