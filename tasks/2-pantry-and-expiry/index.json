@@ -117,7 +117,8 @@
       "phase": 7,
       "name": "break-it",
       "scope": [
-        "tasks/2-pantry-and-expiry/"
+        "tasks/2-pantry-and-expiry/",
+        "test/integration/slack-delivery.int-spec.ts"
       ],
       "requires": [
         "docker"

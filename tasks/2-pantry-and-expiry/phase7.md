@@ -12,6 +12,12 @@
 
 ## 작업 내용
 
+### 0. phase 6이 남긴 통합 테스트 기대값
+
+phase 6이 `daily_brief` 템플릿 버전을 3으로 올렸는데 `test/integration/slack-delivery.int-spec.ts`의 발송 스냅숏 기대값이 `templateVersion: 2`로 남아 `pnpm test:int`가 HEAD에서 실패한다. 그 한 줄을 `templateVersion: 3`으로 고친다. 이 파일에서 다른 것은 고치지 마라. `reaction_prompt`의 `templateVersion: 1`은 그대로다. 이 사실을 `break-it.md` 머리에 한 문단으로 적어라(phase 6의 AC에 통합 테스트가 없었던 것이 원인이다).
+
+### 1. 고장 실험
+
 앞 phase들이 만든 테스트가 실제로 규칙을 잡고 있는지 확인한다. 세 고장을 **하나씩** 넣고, 지목한 테스트를 돌려 실패를 확인하고, 되돌린 뒤 통과를 확인한다. 기준점은 phase 6의 커밋(HEAD)이다. `git stash`를 쓰지 말고, 되돌릴 때는 `git checkout -- <파일>`이 아니라 편집으로 원래 코드를 되돌려라(프리앰블이 checkout을 금지한다). 되돌린 뒤 `git diff --quiet HEAD -- src`로 깨끗한지 확인한다.
 
 | # | 고장 | 파일 | 지목한 테스트 |
@@ -33,7 +39,8 @@ test -f tasks/2-pantry-and-expiry/break-it.md
 grep -q "EXPIRY_NOTICE_DAYS" tasks/2-pantry-and-expiry/break-it.md
 grep -q "nextExpiry" tasks/2-pantry-and-expiry/break-it.md
 grep -q "FAIL" tasks/2-pantry-and-expiry/break-it.md
-git diff --quiet HEAD -- src test prisma docs README.md
+! git diff HEAD -- test | grep -E '^\+[^+]' | grep -v 'templateVersion: 3'
+git diff --quiet HEAD -- src prisma docs README.md test ':(exclude)test/integration/slack-delivery.int-spec.ts'
 pnpm typecheck
 pnpm lint
 pnpm test
@@ -42,7 +49,7 @@ pnpm test:int
 
 ## AC 검증 방법
 
-위 명령을 순서대로 실행하라. 모두 exit 0이면 status를 `completed`로 보고하라. `git diff --quiet HEAD -- src ...`는 고장을 전부 되돌렸다는 뜻이다. 세 번 고쳐도 실패하면 status를 `error`로 보고하고 `error_message`에 실제 출력을 근거로 적어라.
+위 명령을 순서대로 실행하라. 모두 exit 0이면 status를 `completed`로 보고하라. `git diff --quiet HEAD -- src ...`는 고장을 전부 되돌렸다는 뜻이고, `test`에서 더해진 줄은 0번의 한 줄뿐이어야 한다. 세 번 고쳐도 실패하면 status를 `error`로 보고하고 `error_message`에 실제 출력을 근거로 적어라.
 
 ## 하지 말아야 할 것
 
