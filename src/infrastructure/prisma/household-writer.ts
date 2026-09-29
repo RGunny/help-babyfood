@@ -382,6 +382,12 @@ class PrismaWriteContext implements HouseholdWriteContext {
     await this.tx.ingredient.update({ where: { id: ingredientId }, data: { servingWeightGram } });
   }
 
+  /** Switches how the ingredient's stock is counted. The service checks that no cubes remain. */
+  async updateStockTracking(ingredientId: string, stockTracking: Ingredient['stockTracking']): Promise<void> {
+    this.dirty = true;
+    await this.tx.ingredient.update({ where: { id: ingredientId }, data: { stockTracking } });
+  }
+
   async insertMenu(draft: MenuDraft): Promise<Menu> {
     this.dirty = true;
     const row = await this.tx.menu.create({
