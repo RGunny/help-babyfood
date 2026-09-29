@@ -74,7 +74,9 @@
       "name": "application",
       "scope": [
         "src/application/",
-        "test/integration/"
+        "test/integration/",
+        "src/slack/templates/daily-brief.spec.ts",
+        "src/slack/templates/household-board.spec.ts"
       ],
       "requires": [
         "docker"

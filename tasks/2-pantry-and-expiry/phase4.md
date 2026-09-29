@@ -95,6 +95,10 @@ export interface DailyBrief {
 
 `ReactionService.getIntroductionStatus`의 반환 항목(`IngredientIntroduction`)에 `stockTracking: StockTracking`을 더한다. MCP의 `get_ingredient_introduction_status`가 재료 목록 조회를 겸하므로 거기서 상비 여부를 보이기 위해서다(phase 5가 출력에 싣는다).
 
+### 4b. Slack spec의 타입 파급
+
+`DailyBrief`와 `BriefStockRow`에 필수 필드가 생기므로 `src/slack/templates/daily-brief.spec.ts`와 `src/slack/templates/household-board.spec.ts`의 리터럴이 `pnpm typecheck`에 걸린다. 두 파일에서는 **리터럴에 `nextExpiry: null,`과 `pantryIngredients: [],`를 더하는 것만 한다.** 실제 값을 넣는 것과 템플릿 변경은 phase 6이 한다. AC가 `src/slack`에 더해진 줄이 전부 이 두 식별자 중 하나를 담는지 검사하고, spec이 아닌 템플릿 파일은 바뀌지 않았는지 검사한다.
+
 ### 5. 단위 테스트
 
 `src/application/daily-brief.spec.ts`에 더한다.
@@ -151,7 +155,8 @@ grep -q "PANTRY_WITH_STOCK" test/integration/ingredient.int-spec.ts
 grep -q "PANTRY_INGREDIENT" test/integration/stock.int-spec.ts
 grep -q "상비" test/integration/settings.int-spec.ts
 grep -q "pantryIngredients" test/integration/daily-brief.int-spec.ts
-git diff --quiet HEAD -- src/domain src/infrastructure src/mcp src/slack src/scheduler prisma docs README.md
+! git diff HEAD -- src/slack | grep -E '^\+[^+]' | grep -v -E 'nextExpiry|pantryIngredients'
+git diff --quiet HEAD -- src/domain src/infrastructure src/mcp src/scheduler prisma docs README.md src/slack ':(exclude)src/slack/templates/daily-brief.spec.ts' ':(exclude)src/slack/templates/household-board.spec.ts'
 ```
 
 ## AC 검증 방법
@@ -164,5 +169,5 @@ git diff --quiet HEAD -- src/domain src/infrastructure src/mcp src/slack src/sch
 - `buildDailyBrief`에서 상비 재료를 다시 거르지 마라. 이유: 도메인 `summarizeStock`이 이미 뺀다. 두 번 거르면 규칙이 두 곳에 생긴다.
 - `nextExpiry`의 단계를 애플리케이션에서 날짜 차로 다시 계산하지 마라. 이유: `BatchStock.expiry`가 도메인이 계산한 값이다.
 - 서비스에 데코레이터를 달거나 `@nestjs/*`를 import하지 마라. 이유: AGENTS.md 계층 규약.
-- `src/mcp`, `src/slack`을 고치지 마라. 이유: phase 5와 6의 일이고 scope 밖이다. 이 phase가 끝난 뒤 MCP 도구와 템플릿은 새 필드를 아직 보이지 않지만 컴파일된다(추가된 필드는 읽지 않아도 된다).
+- `src/mcp`와 `src/slack`의 템플릿 파일을 고치지 마라. 이유: phase 5와 6의 일이고 scope 밖이다. `src/slack`에서 허용되는 것은 4b의 두 spec 파일에 `nextExpiry: null`과 `pantryIngredients: []`를 더하는 것뿐이다.
 - scope 밖 파일을 수정하지 마라. 러너가 phase를 실패로 처리한다.
