@@ -173,7 +173,7 @@ describe('Slack 발송', () => {
       channelId: CHANNEL_ID,
       messageTs: ts,
       templateKey: 'daily_brief',
-      templateVersion: 2,
+      templateVersion: 3,
       postedAt: services.clock.instant(),
     });
     expect(row.payload).toEqual({ text: received[0].body.text, blocks: received[0].body.blocks });
