@@ -17,6 +17,7 @@
 | `docs/adr/0006-slack-delivery-and-deployment.md` | Slack 발송 클레임과 재시도, 버튼 응답의 서명과 멱등키, Railway 배포 |
 | `docs/adr/0007-slack-message-templates.md` | 코드 템플릿, 재고 표, 보낸 메시지 스냅숏 |
 | `docs/adr/0008-slack-canvas-board.md` | 채널 캔버스 상태판, `state_changed_at` 갱신 판정, 회차 투영 |
+| `docs/adr/0009-pantry-ingredients-and-expiry-notice.md` | 상비 재료, 재고 표의 임계일 열과 3일 전 강조 |
 
 규칙을 알고 싶으면 기획안 4장을 읽는다. 왜 그렇게 만들었는지는 ADR에 있다.
 
