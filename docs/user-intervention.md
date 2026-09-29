@@ -17,7 +17,7 @@
 | 7 | 버튼을 누를 구성원의 Slack 사용자 id 연결 | 아빠 연결함(`U097XRTNAP4`). 엄마는 아직 |
 | 8 | 대화에 노출된 봇 토큰 교체 | 안 함 |
 | 9 | 캔버스 스코프 추가와 상태판 캔버스 연결 | 끝남. 캔버스 `F0C4HPW0JP7`이 연결되어 서버가 채운다 |
-| 10 | 재고 방식 마이그레이션과 상비 재료 전환 | 안 함 |
+| 10 | 재고 방식 마이그레이션과 상비 재료 전환 | 끝남. 2026-09-29 배포 뒤 마이그레이션 적용, 세 재료 상비 전환 |
 
 ## 1. GitHub에 push한다
 
@@ -158,8 +158,8 @@ railway ssh "node dist/scripts/link-slack.js --household 재하네 --canvas F0C4
 
 ## 10. 재고 방식 마이그레이션과 상비 재료 전환
 
-- [ ] 배포 뒤 운영 컨테이너에서 `stock_tracking` 마이그레이션을 적용한다.
-- [ ] Claude Code에서 `update_ingredient_stock_tracking`으로 땅콩버터, 계란, 밀가루를 `pantry`로 바꾼다.
+- [x] 배포 뒤 운영 컨테이너에서 `stock_tracking` 마이그레이션을 적용한다.
+- [x] Claude Code에서 `update_ingredient_stock_tracking`으로 땅콩버터, 계란, 밀가루를 `pantry`로 바꾼다.
 
 ADR 0009가 재료에 재고 방식(`cubes`, `pantry`)을 두면서 `ingredient` 테이블에 `stock_tracking` 컬럼이 는다. 6번이 말하듯 Railway 서비스에 배포 전 명령이 아직 없어서, 마이그레이션이 든 커밋을 push하면 배포는 시작되지만 마이그레이션은 돌지 않는다. 배포 뒤 사람이 돌린다.
 
@@ -170,5 +170,7 @@ railway ssh "pnpm db:deploy"
 마이그레이션이 적용되기 전에 뜬 서버는 재료를 읽는 순간 새 컬럼이 없어 실패하므로, 배포 직후에 바로 돌린다.
 
 그 뒤 Claude Code에서 `update_ingredient_stock_tracking`으로 땅콩버터, 계란, 밀가루 세 재료를 `pantry`로 바꾼다. 전환 조건은 그 재료의 잔여 큐브가 0인 것이다. 남아 있으면 서버가 `PANTRY_WITH_STOCK`으로 거부하므로, 먼저 `get_stock_status`로 세 재료의 합계가 0인지 본다. 2026-09-26 이관 때 세 재료는 입고 없이 등록되어 잔여가 0이다. 바꾸고 나면 다음 정합화부터 "재고 부족으로 보류된 차감: 계란 1개"가 상태판의 확인 필요에서 사라지고, `forecast_shortage`에서도 빠진다.
+
+2026-09-29에 그렇게 했다. `main`에 push한 커밋 `142c97b`의 배포가 끝난 뒤 `railway ssh "cd /app && pnpm db:deploy"`로 `20260929120000_stock_tracking`이 적용됐고("All migrations have been successfully applied"), 이어서 세 재료를 `pantry`로 바꿨다. 직후 `get_daily_brief`에서 `heldDeductions`와 `shortages`가 비었고 `pantryIngredients`에 밀가루, 땅콩버터, 계란이 올랐다.
 
 이 작업이 사람 몫인 이유는 둘이다. 마이그레이션은 운영 DB에 쓰는 일이고(AGENTS.md 검증 절), 어느 재료가 상비인지는 부모가 정한 것이라 서버가 판정할 수 없다.
