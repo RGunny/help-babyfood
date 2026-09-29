@@ -71,6 +71,27 @@ describe('입고', () => {
     expect(await services.prisma.stockLedgerEntry.count({ where: { householdId: house.id } })).toBe(0);
   });
 
+  it('상비 재료는 입고를 거부하고 배치도 원장도 남기지 않는다', async () => {
+    const house = await household();
+    await services.ingredient.register({
+      householdId: house.id,
+      actor: house.actor,
+      name: '계란',
+      category: 'high_risk_allergen',
+      servingWeightGram: 15,
+    });
+    await services.ingredient.updateStockTracking({
+      householdId: house.id,
+      actor: house.actor,
+      name: '계란',
+      stockTracking: 'pantry',
+    });
+
+    await expect(receive(house, '계란', 5)).rejects.toMatchObject({ code: 'PANTRY_INGREDIENT' });
+    expect(await services.prisma.cookedBatch.count({ where: { householdId: house.id } })).toBe(0);
+    expect(await services.prisma.stockLedgerEntry.count({ where: { householdId: house.id } })).toBe(0);
+  });
+
   it('입고한 수행자가 원장에 남는다', async () => {
     const house = await household();
     const batch = await receive(house, '브로콜리', 12);
@@ -226,9 +247,9 @@ describe('폐기', () => {
 });
 
 describe('재고현황', () => {
-  it('폐기 대기도 합계에 넣고 내역을 따로 보인다', async () => {
+  it('임계 지남도 합계에 넣고 내역을 따로 보인다', async () => {
     const house = await household();
-    // 임계일 14일. 2026-08-01 조리는 2026-08-15가 임계일이라 8/17에는 폐기 대기다.
+    // 임계일 14일. 2026-08-01 조리는 2026-08-15가 임계일이라 8/17에는 임계 지남이다.
     await receive(house, '브로콜리', 3, { cookedOn: '2026-08-01' });
     await receive(house, '브로콜리', 9, { cookedOn: '2026-08-15' });
 

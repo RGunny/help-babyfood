@@ -90,6 +90,9 @@ function resolveThresholds(
     if (ingredient === null) {
       throw new DomainError('UNKNOWN_INGREDIENT', `등록되지 않은 재료입니다: ${input.ingredientName}`);
     }
+    if (ingredient.stockTracking === 'pantry') {
+      throw new ApplicationError('INVALID_THRESHOLD', `상비 재료에는 임계개수를 둘 수 없습니다: ${ingredient.name}`);
+    }
     if (!Number.isInteger(input.thresholdCubes) || input.thresholdCubes < 0) {
       throw new ApplicationError(
         'INVALID_THRESHOLD',

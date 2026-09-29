@@ -205,3 +205,38 @@ describe('데일리 브리프 도구', () => {
     expect(today.needsAttention).toMatchObject({ planRunwayDays: 4, planRunwayShort: true });
   });
 });
+
+describe('데일리 브리프 읽기 모델', () => {
+  it('상비 재료는 식단시간이 지나도 보류된 차감에 오르지 않고 재고 표 대신 상비 목록에 있다', async () => {
+    // 브로콜리는 재고가 0이라 큐브 추적이면 보류된 차감에 오른다. 상비로 바꾸면 차감 대상이 아니다.
+    await services.ingredient.updateStockTracking({
+      householdId: household.id,
+      actor: household.actor,
+      name: '브로콜리',
+      stockTracking: 'pantry',
+    });
+    services.clock.set(TODAY, '12:00');
+
+    const today = await services.dailyBrief.get(household.id);
+
+    expect(today.attention.heldDeductions).toEqual([]);
+    expect(today.stock.map((row) => row.name)).not.toContain('브로콜리');
+    expect(today.pantryIngredients).toEqual([
+      { ingredientId: household.ingredientId('브로콜리'), name: '브로콜리' },
+    ]);
+  });
+
+  it('재고 표의 임계일 열이 가장 이른 배치의 임계일이다', async () => {
+    // 9/15 배치의 임계일은 9/29, 9/8 배치는 9/22 오늘이다. 더 이른 쪽이 열에 선다.
+    await receive('소고기', 2, '2026-09-08');
+
+    const today = await services.dailyBrief.get(household.id);
+
+    expect(today.stock.find((row) => row.name === '소고기')!.nextExpiry).toEqual({
+      date: localDate(TODAY),
+      stage: { kind: 'due_soon', daysLeft: 0 },
+    });
+    expect(today.stock.find((row) => row.name === '애호박')!.nextExpiry).toBeNull();
+    expect(today.pantryIngredients).toEqual([]);
+  });
+});

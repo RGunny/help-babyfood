@@ -14,6 +14,7 @@ import {
   batchesNeedingExpiryAlert,
   summarizeStock,
 } from '../domain/stock/stock-summary.js';
+import { ApplicationError } from './errors.js';
 import { Actor, HouseholdReader, HouseholdWriter } from './ports/household-write.port.js';
 import { ClockPort } from './ports/clock.port.js';
 
@@ -79,6 +80,12 @@ export class StockService {
           throw new DomainError(
             'UNKNOWN_INGREDIENT',
             `등록되지 않은 재료입니다: ${command.ingredientName}`,
+          );
+        }
+        if (ingredient.stockTracking === 'pantry') {
+          throw new ApplicationError(
+            'PANTRY_INGREDIENT',
+            `상비 재료는 큐브로 입고하지 않습니다: ${ingredient.name}`,
           );
         }
         const batch = await context.insertCookedBatch({

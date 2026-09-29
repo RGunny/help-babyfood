@@ -67,13 +67,14 @@ const BRIEF: DailyBrief = {
   slots: [],
   newIngredients: [],
   stock: [
-    { ingredientId: id(1), name: '쌀', total: 5, fresh: 5, overdue: 0, weightMismatched: 0, depletionDate: localDate('2026-10-01') },
-    { ingredientId: id(2), name: '오트밀', total: 13, fresh: 13, overdue: 0, weightMismatched: 0, depletionDate: null },
-    { ingredientId: id(3), name: '소고기', total: 16, fresh: 16, overdue: 0, weightMismatched: 0, depletionDate: localDate('2026-10-12') },
-    { ingredientId: id(4), name: '브로콜리', total: 3, fresh: 0, overdue: 3, weightMismatched: 0, depletionDate: localDate('2026-09-30') },
-    { ingredientId: id(5), name: '계란', total: 0, fresh: 0, overdue: 0, weightMismatched: 0, depletionDate: null },
-    { ingredientId: id(6), name: '오이', total: 0, fresh: 0, overdue: 0, weightMismatched: 0, depletionDate: null },
+    { ingredientId: id(1), name: '쌀', total: 5, fresh: 5, overdue: 0, weightMismatched: 0, depletionDate: localDate('2026-10-01'), nextExpiry: null },
+    { ingredientId: id(2), name: '오트밀', total: 13, fresh: 13, overdue: 0, weightMismatched: 0, depletionDate: null, nextExpiry: null },
+    { ingredientId: id(3), name: '소고기', total: 16, fresh: 16, overdue: 0, weightMismatched: 0, depletionDate: localDate('2026-10-12'), nextExpiry: null },
+    { ingredientId: id(4), name: '브로콜리', total: 3, fresh: 0, overdue: 3, weightMismatched: 0, depletionDate: localDate('2026-09-30'), nextExpiry: null },
+    { ingredientId: id(5), name: '계란', total: 0, fresh: 0, overdue: 0, weightMismatched: 0, depletionDate: null, nextExpiry: null },
+    { ingredientId: id(6), name: '오이', total: 0, fresh: 0, overdue: 0, weightMismatched: 0, depletionDate: null, nextExpiry: null },
   ],
+  pantryIngredients: [],
   shortages: [],
   thresholdAlerts: [{ ingredientId: id(6), name: '오이', total: 0, thresholdCubes: 2 }],
   expiryAlerts: [
@@ -160,6 +161,7 @@ describe('상태판 캔버스', () => {
       overdue: 0,
       weightMismatched: 0,
       depletionDate: null,
+      nextExpiry: null,
     }));
     const markdown = householdBoardTemplate.render(board({ brief: { ...BRIEF, stock, thresholdAlerts: [] } }));
 

@@ -113,7 +113,9 @@ describe('재료 등록', () => {
     const house = await household();
     await register(house, '완두콩', { verifiedBeforeMigration: true });
     const statuses = await services.reaction.getIntroductionStatus(house.id);
-    expect(statuses).toEqual([{ ingredientId: expect.any(String), name: '완두콩', status: { kind: 'verified' } }]);
+    expect(statuses).toEqual([
+      { ingredientId: expect.any(String), name: '완두콩', status: { kind: 'verified' }, stockTracking: 'cubes' },
+    ]);
   });
 });
 
@@ -232,5 +234,72 @@ describe('1회분 중량 변경', () => {
         servingWeightGram: -1,
       }),
     ).rejects.toThrow(ApplicationError);
+  });
+});
+
+describe('재고 방식 변경', () => {
+  const updateStockTracking = async (
+    house: Household,
+    name: string,
+    stockTracking: 'cubes' | 'pantry',
+    idempotencyKey?: string,
+  ) =>
+    await services.ingredient.updateStockTracking({
+      householdId: house.id,
+      actor: house.actor,
+      idempotencyKey,
+      name,
+      stockTracking,
+    });
+
+  const storedStockTracking = async (ingredientId: string) =>
+    (await services.prisma.ingredient.findUniqueOrThrow({ where: { id: ingredientId } })).stockTracking;
+
+  it('잔여 큐브가 없는 재료는 상비로 바뀌고 다시 큐브 추적으로 돌아온다', async () => {
+    const house = await household();
+    const ingredient = await register(house, '계란');
+
+    const pantry = await updateStockTracking(house, '계란', 'pantry');
+    expect(pantry.stockTracking).toBe('pantry');
+    expect(await storedStockTracking(ingredient.id)).toBe('pantry');
+    const statuses = await services.reaction.getIntroductionStatus(house.id);
+    expect(statuses).toMatchObject([{ name: '계란', stockTracking: 'pantry' }]);
+
+    const cubes = await updateStockTracking(house, '계란', 'cubes');
+    expect(cubes.stockTracking).toBe('cubes');
+    expect(await storedStockTracking(ingredient.id)).toBe('cubes');
+  });
+
+  it('잔여 큐브가 있는 재료는 상비로 바꿀 수 없다', async () => {
+    const house = await household();
+    const ingredient = await register(house, '계란', { servingWeightGram: 10 });
+    await services.stock.registerCookedBatch({
+      householdId: house.id,
+      actor: house.actor,
+      ingredientName: '계란',
+      cubeWeightGram: 10,
+      cookedOn: localDate('2026-08-15'),
+      cubes: 2,
+    });
+
+    await expect(updateStockTracking(house, '계란', 'pantry')).rejects.toMatchObject({
+      code: 'PANTRY_WITH_STOCK',
+    });
+    expect(await storedStockTracking(ingredient.id)).toBe('cubes');
+  });
+
+  it('같은 멱등키로 두 번 부르면 한 번만 기록되고 응답이 같다', async () => {
+    const house = await household();
+    await register(house, '계란');
+
+    const first = await updateStockTracking(house, '계란', 'pantry', 'stock-tracking-001');
+    const second = await updateStockTracking(house, '계란', 'pantry', 'stock-tracking-001');
+
+    expect(second).toEqual(first);
+    expect(
+      await services.prisma.idempotencyRecord.count({
+        where: { householdId: house.id, operation: 'update_ingredient_stock_tracking' },
+      }),
+    ).toBe(1);
   });
 });

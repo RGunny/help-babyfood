@@ -149,7 +149,35 @@ describe('알람 설정', () => {
     ]);
   });
 
-  it('바꾼 임계일이 폐기 대기 판정에 쓰인다', async () => {
+  it('상비 재료의 임계개수는 거부한다', async () => {
+    const house = await household();
+    await services.ingredient.register({
+      householdId: house.id,
+      actor: house.actor,
+      name: '계란',
+      category: 'high_risk_allergen',
+      servingWeightGram: 10,
+    });
+    await services.ingredient.updateStockTracking({
+      householdId: house.id,
+      actor: house.actor,
+      name: '계란',
+      stockTracking: 'pantry',
+    });
+
+    await expect(
+      services.alertSettings.update({
+        householdId: house.id,
+        actor: house.actor,
+        briefTime: localTime('07:30'),
+        shelfLifeDays: 14,
+        thresholds: [{ ingredientName: '계란', thresholdCubes: 3 }],
+      }),
+    ).rejects.toMatchObject({ code: 'INVALID_THRESHOLD', message: '상비 재료에는 임계개수를 둘 수 없습니다: 계란' });
+    expect((await services.alertSettings.getSettings(house.id)).thresholds).toEqual([]);
+  });
+
+  it('바꾼 임계일이 임계 지남 판정에 쓰인다', async () => {
     const house = await household();
     await services.stock.registerCookedBatch({
       householdId: house.id,

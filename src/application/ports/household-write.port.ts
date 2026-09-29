@@ -1,5 +1,5 @@
 import { MealStatusChange } from '../../domain/deduction/reconcile.js';
-import { Ingredient } from '../../domain/ingredient/ingredient.js';
+import { Ingredient, StockTracking } from '../../domain/ingredient/ingredient.js';
 import { FeedingReaction } from '../../domain/ingredient/introduction-status.js';
 import { Meal } from '../../domain/meal-plan/meal.js';
 import { NoFeedRecord, SlotSchedule } from '../../domain/meal-plan/meal-calendar.js';
@@ -61,6 +61,7 @@ export interface CatalogWrites {
   /** Appends one more name for the ingredient. The position continues the stored ones. */
   addIngredientAlias(ingredientId: string, alias: string): Promise<void>;
   updateServingWeight(ingredientId: string, servingWeightGram: number): Promise<void>;
+  updateStockTracking(ingredientId: string, stockTracking: StockTracking): Promise<void>;
   insertMenu(draft: MenuDraft): Promise<Menu>;
   /** Replaces the components as a whole: a partial update could leave an orphan component. */
   updateMenu(menu: Menu): Promise<Menu>;

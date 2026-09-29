@@ -130,6 +130,7 @@ function briefOf(slots: readonly BriefSlot[] = [], newIngredients: readonly Brie
     slots,
     newIngredients,
     stock: [],
+    pantryIngredients: [],
     shortages: [],
     thresholdAlerts: [],
     expiryAlerts: [],

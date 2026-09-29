@@ -86,6 +86,7 @@ const BRIEF: DailyBrief = {
   slots: [],
   newIngredients: [],
   stock: [],
+  pantryIngredients: [],
   shortages: [],
   thresholdAlerts: [],
   expiryAlerts: [],

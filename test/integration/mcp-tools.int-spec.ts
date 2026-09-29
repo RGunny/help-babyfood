@@ -334,7 +334,7 @@ describe('재고', () => {
     expect(status.ingredients.find((row: any) => row.ingredientName === '소고기').total).toBe(0);
   });
 
-  it('임계일이 지난 배치는 폐기 대기로 알리되 재고에는 남는다', async () => {
+  it('임계일이 지난 배치는 임계 지남으로 알리되 재고에는 남는다', async () => {
     await call('register_cooked_batch', {
       idempotencyKey: nextKey(),
       ingredientName: '소고기',
@@ -771,7 +771,7 @@ describe('예측과 알람 설정', () => {
     });
   });
 
-  it('임계일을 줄이면 재고현황의 폐기 대기 판정이 따라 바뀐다', async () => {
+  it('임계일을 줄이면 재고현황의 임계 지남 판정이 따라 바뀐다', async () => {
     await call('register_cooked_batch', {
       idempotencyKey: nextKey(),
       ingredientName: '소고기',

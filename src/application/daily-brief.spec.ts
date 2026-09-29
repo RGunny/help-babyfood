@@ -20,6 +20,7 @@ const INGREDIENTS: Ingredient[] = [
   { id: 'beef', name: '소고기', aliases: [], category: 'meat', servingWeightGram: 10, stockTracking: 'cubes' },
   { id: 'broccoli', name: '브로콜리', aliases: [], category: 'vegetable', servingWeightGram: 15, stockTracking: 'cubes' },
   { id: 'pea', name: '완두콩', aliases: [], category: 'vegetable', servingWeightGram: 15, stockTracking: 'cubes' },
+  { id: 'egg', name: '계란', aliases: [], category: 'high_risk_allergen', servingWeightGram: 10, stockTracking: 'pantry' },
 ];
 
 const PORRIDGE: Menu = {
@@ -228,11 +229,11 @@ describe('데일리 브리프', () => {
   });
 
   describe('재고현황', () => {
-    it('합계와 가용, 폐기 대기를 나눠 보인다', () => {
+    it('합계와 가용, 임계 지남을 나눠 보인다', () => {
       const today = brief({
         stock: stock([
           { ingredientId: 'broccoli', cookedOn: '2026-09-15', cubes: 9 },
-          // 임계일(9/19)이 지나 폐기 대기지만 합계에는 그대로 들어간다.
+          // 임계일(9/19)이 지났지만 합계에는 그대로 들어간다.
           { ingredientId: 'broccoli', cookedOn: '2026-09-05', cubes: 3 },
         ]),
       });
@@ -252,6 +253,31 @@ describe('데일리 브리프', () => {
         '브로콜리',
         '완두콩',
       ]);
+    });
+
+    it('상비 재료는 재고 표에 없고 상비 목록에 이름이 있다', () => {
+      const today = brief();
+
+      expect(today.stock.map((row) => row.name)).not.toContain('계란');
+      expect(today.pantryIngredients).toEqual([{ ingredientId: 'egg', name: '계란' }]);
+    });
+
+    it('임계일 열은 잔여가 있는 가장 이른 배치의 임계일과 단계다', () => {
+      const today = brief({
+        stock: stock([
+          { ingredientId: 'broccoli', cookedOn: '2026-09-15', cubes: 9 },
+          { ingredientId: 'broccoli', cookedOn: '2026-09-09', cubes: 2 },
+        ]),
+      });
+
+      expect(today.stock.find((row) => row.name === '브로콜리')!.nextExpiry).toEqual({
+        date: dateOf(1),
+        stage: { kind: 'due_soon', daysLeft: 1 },
+      });
+    });
+
+    it('배치가 없는 재료의 임계일 열은 비어 있다', () => {
+      expect(brief().stock.find((row) => row.name === '완두콩')!.nextExpiry).toBeNull();
     });
 
     it('식단이 재고를 다 쓰는 날이 소진 예상일로 붙는다', () => {
@@ -331,6 +357,12 @@ describe('데일리 브리프', () => {
       expect(today.attention.heldDeductions).toEqual([
         { ingredientId: 'pea', name: '완두콩', cubes: 1, date: TODAY, slot: 'morning' },
       ]);
+    });
+
+    it('상비 재료는 재고가 없어도 보류된 차감에 오르지 않는다', () => {
+      const today = brief({ meals: [meal(1, ['beef', 'egg'])], at: '12:00' });
+
+      expect(today.attention.heldDeductions).toEqual([]);
     });
 
     it('식단시간 전에는 보류된 차감이 없다', () => {

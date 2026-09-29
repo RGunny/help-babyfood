@@ -13,7 +13,9 @@ export type ApplicationErrorCode =
   | 'INVALID_WEIGHT'
   | 'INVALID_CUBE_COUNT'
   | 'INVALID_PAIRING'
-  | 'INVALID_THRESHOLD';
+  | 'INVALID_THRESHOLD'
+  | 'PANTRY_WITH_STOCK'
+  | 'PANTRY_INGREDIENT';
 
 export class ApplicationError extends Error {
   constructor(

@@ -32,6 +32,7 @@ function brief(overrides: Partial<DailyBrief> = {}): DailyBrief {
     ],
     newIngredients: [],
     stock: [],
+    pantryIngredients: [],
     shortages: [],
     thresholdAlerts: [],
     expiryAlerts: [],
@@ -56,6 +57,7 @@ function stockRows(count: number): BriefStockRow[] {
     overdue: 2,
     weightMismatched: 1,
     depletionDate: localDate('2026-10-01'),
+    nextExpiry: null,
   }));
 }
 
@@ -161,6 +163,7 @@ function stockRow(name: string, overrides: Partial<BriefStockRow> = {}): BriefSt
     overdue: 0,
     weightMismatched: 0,
     depletionDate: null,
+    nextExpiry: null,
     ...overrides,
   };
 }
@@ -416,6 +419,7 @@ describe('브리프 렌더링', () => {
             overdue: 2,
             weightMismatched: 0,
             depletionDate: null,
+            nextExpiry: null,
           },
         ],
         shortages: [
@@ -483,6 +487,7 @@ describe('브리프 v2 페이로드', () => {
       overdue,
       weightMismatched: 0,
       depletionDate: depletion === null ? null : localDate(depletion),
+      nextExpiry: null,
     });
     const discard = (
       n: number,

@@ -1,5 +1,6 @@
 import { DomainError } from '../domain/errors.js';
-import { Ingredient, IngredientCategory } from '../domain/ingredient/ingredient.js';
+import { Ingredient, IngredientCategory, StockTracking } from '../domain/ingredient/ingredient.js';
+import { remainingByBatch } from '../domain/stock/ledger.js';
 import { IngredientCatalog } from '../domain/ingredient/ingredient-catalog.js';
 import { ApplicationError } from './errors.js';
 import { Actor, HouseholdWriter } from './ports/household-write.port.js';
@@ -30,6 +31,14 @@ export interface UpdateServingWeightCommand {
   readonly idempotencyKey?: string;
   readonly name: string;
   readonly servingWeightGram: number;
+}
+
+export interface UpdateStockTrackingCommand {
+  readonly householdId: string;
+  readonly actor: Actor;
+  readonly idempotencyKey?: string;
+  readonly name: string;
+  readonly stockTracking: StockTracking;
 }
 
 /**
@@ -113,6 +122,40 @@ export class IngredientService {
         const servingWeightGram = requirePositiveWeight(command.servingWeightGram);
         await context.updateServingWeight(ingredient.id, servingWeightGram);
         return { ...ingredient, servingWeightGram };
+      },
+    );
+  }
+
+  /**
+   * Eggs are bought, not cooked into cubes, so they leave the stock table. Cubes still in the
+   * freezer would vanish from it with them, which is why those have to be used or discarded first.
+   */
+  async updateStockTracking(command: UpdateStockTrackingCommand): Promise<Ingredient> {
+    return await this.writer.write(
+      {
+        householdId: command.householdId,
+        actor: command.actor,
+        operation: 'update_ingredient_stock_tracking',
+        idempotencyKey: command.idempotencyKey,
+        payload: { name: command.name, stockTracking: command.stockTracking },
+      },
+      async (context) => {
+        const state = await context.load();
+        const ingredient = requireIngredient(state.catalog, command.name);
+        if (command.stockTracking === 'pantry') {
+          const remaining = remainingByBatch(state.entries);
+          const cubesLeft = state.batches
+            .filter((batch) => batch.ingredientId === ingredient.id)
+            .reduce((cubes, batch) => cubes + (remaining.get(batch.id) ?? 0), 0);
+          if (cubesLeft > 0) {
+            throw new ApplicationError(
+              'PANTRY_WITH_STOCK',
+              `잔여 큐브가 있는 재료는 상비로 바꿀 수 없습니다: ${ingredient.name} ${cubesLeft}개`,
+            );
+          }
+        }
+        await context.updateStockTracking(ingredient.id, command.stockTracking);
+        return { ...ingredient, stockTracking: command.stockTracking };
       },
     );
   }

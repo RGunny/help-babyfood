@@ -1,5 +1,5 @@
 import { DomainError } from '../domain/errors.js';
-import { Ingredient } from '../domain/ingredient/ingredient.js';
+import { Ingredient, StockTracking } from '../domain/ingredient/ingredient.js';
 import { FeedingReaction, IntroductionStatus } from '../domain/ingredient/introduction-status.js';
 import { Meal } from '../domain/meal-plan/meal.js';
 import { LocalDate } from '../domain/shared/local-date.js';
@@ -26,6 +26,7 @@ export interface IngredientIntroduction {
   readonly ingredientId: string;
   readonly name: string;
   readonly status: IntroductionStatus;
+  readonly stockTracking: StockTracking;
 }
 
 /**
@@ -85,6 +86,7 @@ export class ReactionService {
         ingredientId: ingredient.id,
         name: ingredient.name,
         status: statuses.get(ingredient.id)!,
+        stockTracking: ingredient.stockTracking,
       }));
     });
   }

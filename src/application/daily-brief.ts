@@ -61,6 +61,11 @@ export interface BriefNewIngredient {
   readonly exposureNumber: number;
 }
 
+export interface BriefNextExpiry {
+  readonly date: LocalDate;
+  readonly stage: ExpiryStage;
+}
+
 export interface BriefStockRow {
   readonly ingredientId: string;
   readonly name: string;
@@ -70,6 +75,14 @@ export interface BriefStockRow {
   readonly weightMismatched: number;
   /** Date the plan uses the last deductible cube. Null when stock outlasts the plan. */
   readonly depletionDate: LocalDate | null;
+  /** Earliest expiry among the batches with cubes left. Null when nothing is in the freezer. */
+  readonly nextExpiry: BriefNextExpiry | null;
+}
+
+/** Ingredients that are always at hand and therefore have no stock row. */
+export interface BriefPantryIngredient {
+  readonly ingredientId: string;
+  readonly name: string;
 }
 
 export interface BriefShortage {
@@ -147,6 +160,7 @@ export interface DailyBrief {
   readonly slots: readonly BriefSlot[];
   readonly newIngredients: readonly BriefNewIngredient[];
   readonly stock: readonly BriefStockRow[];
+  readonly pantryIngredients: readonly BriefPantryIngredient[];
   readonly shortages: readonly BriefShortage[];
   readonly thresholdAlerts: readonly BriefThresholdAlert[];
   readonly expiryAlerts: readonly BriefExpiryAlert[];
@@ -217,7 +231,18 @@ export function buildDailyBrief(input: DailyBriefInput): DailyBrief {
       overdue: stock.overdue,
       weightMismatched: stock.weightMismatched,
       depletionDate: forecasts.get(stock.ingredientId)?.depletionDate ?? null,
+      // 배치는 조리일 순이라 첫 배치의 임계일이 가장 이르다.
+      nextExpiry:
+        stock.batches.length === 0
+          ? null
+          : {
+              date: expiryDateOf(stock.batches[0].batch, state.alertSettings.shelfLifeDays),
+              stage: stock.batches[0].expiry,
+            },
     })),
+    pantryIngredients: state.ingredients
+      .filter((ingredient) => ingredient.stockTracking === 'pantry')
+      .map((ingredient) => ({ ingredientId: ingredient.id, name: ingredient.name })),
     shortages: [...forecasts.values()]
       .filter((forecast) => forecast.firstShortageDate !== null)
       .map((forecast) => ({
