@@ -16,7 +16,9 @@
       "phase": 1,
       "name": "schema",
       "scope": [
-        "prisma/"
+        "prisma/",
+        "src/infrastructure/prisma/household-writer.ts",
+        "test/integration/"
       ],
       "requires": [
         "docker"

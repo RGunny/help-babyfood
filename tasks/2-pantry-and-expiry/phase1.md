@@ -14,7 +14,7 @@
 
 ## 작업 내용
 
-스키마와 마이그레이션만 더한다. **이 phase에서는 어떤 코드도 새 컬럼을 읽거나 쓰지 않는다.** 생성된 Prisma 클라이언트에 필드가 생길 뿐이고, 그래서 `pnpm typecheck`가 그대로 통과한다. 도메인 타입과 매퍼는 phase 2가 고친다.
+스키마와 마이그레이션을 더하고, 생성된 Prisma 타입이 요구하는 만큼만 기존 생성 호출을 고친다. 스키마에 기본값이 없으므로 `IngredientCreateInput`과 `IngredientUncheckedCreateInput`에서 `stockTracking`이 필수가 되고, 기존 `prisma.ingredient.create` 호출(아래 3번의 세 파일)이 `pnpm typecheck`에 걸린다. 도메인 타입과 매퍼, 서비스는 phase 2가 고친다.
 
 ### 1. `prisma/schema.prisma`
 
@@ -54,7 +54,19 @@ ALTER TABLE "ingredient" ALTER COLUMN "stock_tracking" DROP DEFAULT;
 
 CHECK 제약은 필요 없다. enum이 값을 제한한다.
 
-### 3. 클라이언트 재생성
+### 3. 생성 호출의 파급
+
+아래 세 파일의 `ingredient.create` 호출에 `stockTracking: 'cubes',` 한 줄을 더한다. **이 phase에서 `prisma/` 밖에 더하는 것은 이 줄뿐이다.** AC가 `prisma/` 밖에서 바뀐 줄이 전부 `stockTracking`을 담는지 검사한다.
+
+| 파일 | 위치 |
+|---|---|
+| `src/infrastructure/prisma/household-writer.ts` | `insertIngredient`의 `create.data`. 새 재료는 큐브 추적으로 시작한다는 ADR 0009 (c)의 규칙이고, phase 2가 이 리터럴을 `draft.stockTracking`으로 바꾼다 |
+| `test/integration/schema-constraints.int-spec.ts` | 재료 행을 직접 만드는 다섯 곳 |
+| `test/integration/date-round-trip.int-spec.ts` | 재료 행을 직접 만드는 한 곳 |
+
+`pnpm typecheck`가 다른 파일을 더 지목하면 그 파일의 `ingredient.create` 호출에도 같은 줄을 더한다. 반환 리터럴이나 도메인 타입에는 손대지 마라. 그것은 phase 2다.
+
+### 4. 클라이언트 재생성
 
 `pnpm prisma:generate`를 돌린다. `src/generated/`는 gitignore 대상이라 커밋에 들지 않지만, 이 세션의 `pnpm typecheck`와 뒤 phase가 새 필드를 보려면 생성되어 있어야 한다.
 
@@ -73,7 +85,8 @@ grep -q '@@map("stock_tracking")' prisma/schema.prisma
 grep -q 'stockTracking' prisma/schema.prisma
 ! grep -E 'stockTracking.*@default' prisma/schema.prisma
 test "$(ls -d prisma/migrations/*/ | wc -l)" -eq 7
-git diff --quiet "$HARNESS_BASELINE" -- src test docs README.md package.json
+! git diff "$HARNESS_BASELINE" -- src test | grep -E '^[+-][^+-]' | grep -v stockTracking
+git diff --quiet "$HARNESS_BASELINE" -- src/domain src/application src/mcp src/slack src/scheduler docs README.md package.json
 ```
 
 ## AC 검증 방법
@@ -82,7 +95,7 @@ git diff --quiet "$HARNESS_BASELINE" -- src test docs README.md package.json
 
 ## 하지 말아야 할 것
 
-- `src/` 아래를 고치지 마라. 이유: 이 phase는 스키마만이고, 도메인 타입 변경은 phase 2가 파급 파일과 함께 한다. scope도 `prisma/`뿐이다.
+- `prisma/` 밖에서는 `ingredient.create` 호출에 `stockTracking: 'cubes',`를 더하는 것 외에 아무것도 고치지 마라. 이유: 도메인 타입 변경과 나머지 파급은 phase 2가 한다. AC의 diff 검사가 다른 줄을 잡는다.
 - 스키마에 `@default(cubes)`를 두지 마라. 이유: 위 1번. `DROP DEFAULT`와 어긋난다.
 - 마이그레이션을 둘 이상 만들지 마라. 이유: AC가 디렉터리 수 7을 검사한다.
 - 기존 마이그레이션 파일을 고치지 마라. 이유: 운영 DB에 이미 적용됐다.
