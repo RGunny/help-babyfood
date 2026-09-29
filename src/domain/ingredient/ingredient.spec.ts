@@ -9,6 +9,7 @@ const broccoli: Ingredient = {
   aliases: ['브로컬리'],
   category: 'vegetable',
   servingWeightGram: 15,
+  stockTracking: 'cubes',
 };
 const beef: Ingredient = {
   id: 'beef',
@@ -16,6 +17,7 @@ const beef: Ingredient = {
   aliases: ['한우', 'Beef'],
   category: 'meat',
   servingWeightGram: 10,
+  stockTracking: 'cubes',
 };
 
 describe('IngredientCatalog', () => {

@@ -32,7 +32,7 @@ export function registerAlertTools(server: McpServer, deps: ToolDeps, caller: Ca
             ingredientName: row.name,
             total: row.total,
             fresh: row.fresh,
-            pendingDiscard: row.pendingDiscard,
+            overdue: row.overdue,
             weightMismatched: row.weightMismatched,
             depletionDate: row.depletionDate,
           })),

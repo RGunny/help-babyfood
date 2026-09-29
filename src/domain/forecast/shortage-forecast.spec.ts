@@ -1,4 +1,4 @@
-import { Ingredient } from '../ingredient/ingredient.js';
+import { Ingredient, StockTracking } from '../ingredient/ingredient.js';
 import { Meal } from '../meal-plan/meal.js';
 import { MealCalendar, NoFeedRecord, SlotSchedule } from '../meal-plan/meal-calendar.js';
 import { localDate } from '../shared/local-date.js';
@@ -7,12 +7,13 @@ import { CookedBatch, LedgerEntry } from '../stock/ledger.js';
 import { ForecastInput, forecastShortage } from './shortage-forecast.js';
 
 const morning: SlotSchedule = { slot: 'morning', startDate: localDate('2026-09-21'), mealTime: localTime('10:00') };
-const ingredient = (id: string, servingWeightGram = 15): Ingredient => ({
+const ingredient = (id: string, servingWeightGram = 15, stockTracking: StockTracking = 'cubes'): Ingredient => ({
   id,
   name: id,
   aliases: [],
   category: 'vegetable',
   servingWeightGram,
+  stockTracking,
 });
 const beef = ingredient('beef', 10);
 const cucumber = ingredient('cucumber');
@@ -144,6 +145,15 @@ describe('소진 예측', () => {
 
     expect(forecastOf(input({ meals }), 'beef')?.plannedCubes).toBe(0);
     expect(forecastOf(input({ meals }), 'cucumber')?.plannedCubes).toBe(1);
+  });
+
+  it('상비 재료는 부족 예측에 나오지 않는다', () => {
+    const egg = ingredient('egg', 10, 'pantry');
+    const meals = [meal(1, ['beef', 'egg']), meal(2, ['egg'])];
+
+    expect(forecastShortage(input({ meals, ingredients: [beef, egg] }))).toEqual([
+      { ingredientId: 'beef', plannedCubes: 1, depletionDate: null, firstShortageDate: null, shortfallCubes: 0 },
+    ]);
   });
 
   it('예측 대상에 없는 재료와 끼니 설정이 없는 식단은 건너뛴다', () => {

@@ -69,14 +69,19 @@ export function reconcileMeals(input: ReconcileInput): ReconcileResult {
     remaining.set(entry.batchId, (remaining.get(entry.batchId) ?? 0) + entry.delta);
   };
   const consumedOf = (mealId: string) => netConsumedByBatch([...input.entries, ...newEntries], mealId);
+  // Pantry ingredients are always at hand: no ledger, so nothing to deduct, hold or revert.
+  const isPantry = (ingredientId: string) => input.catalog.getById(ingredientId).stockTracking === 'pantry';
   const targetOf = (state: DueState): CubeNeed[] =>
-    state.due ? expandToCubeNeeds(effectiveComposition(state.meal), input.menus) : [];
+    state.due
+      ? expandToCubeNeeds(effectiveComposition(state.meal), input.menus).filter((need) => !isPantry(need.ingredientId))
+      : [];
 
   // Release first so that freed cubes are available to the deductions below.
   for (const state of states) {
     const target = new Map(targetOf(state).map((need) => [need.ingredientId, need.cubes]));
     const consumedBatches = [...consumedOf(state.meal.id)]
       .map(([batchId, cubes]) => ({ batch: requireBatch(batchById, batchId), cubes }))
+      .filter(({ batch }) => !isPantry(batch.ingredientId))
       .sort((a, b) => oldestCookedFirst(b.batch, a.batch));
     const consumedByIngredient = new Map<string, number>();
     for (const { batch, cubes } of consumedBatches) {

@@ -1,5 +1,5 @@
 import { DomainError } from '../errors.js';
-import { Ingredient } from '../ingredient/ingredient.js';
+import { Ingredient, StockTracking } from '../ingredient/ingredient.js';
 import { IngredientCatalog } from '../ingredient/ingredient-catalog.js';
 import { Meal } from '../meal-plan/meal.js';
 import { MealCalendar, NoFeedRecord, SlotSchedule } from '../meal-plan/meal-calendar.js';
@@ -11,12 +11,13 @@ import { CookedBatch, LedgerEntry, remainingByBatch } from '../stock/ledger.js';
 import { NoFeedChange, cancelNoFeed, registerNoFeed } from './no-feed.js';
 import { ReconcileInput, applyReconcileResult, reconcileMeals } from './reconcile.js';
 
-const ingredient = (id: string, servingWeightGram: number): Ingredient => ({
+const ingredient = (id: string, servingWeightGram: number, stockTracking: StockTracking = 'cubes'): Ingredient => ({
   id,
   name: id,
   aliases: [],
   category: 'vegetable',
   servingWeightGram,
+  stockTracking,
 });
 const catalog = new IngredientCatalog([
   ingredient('rice', 30),
@@ -261,6 +262,47 @@ describe('재고 부족과 보류', () => {
 
     expect(result.held.map((heldDeduction) => heldDeduction.ingredientId)).toEqual(['broccoli']);
     expect(stockOf(applyReconcileResult(input, result), 'broccoli-10g')).toBe(5);
+  });
+});
+
+describe('상비 재료', () => {
+  const withEgg = (stockTracking: StockTracking) =>
+    new IngredientCatalog([
+      ingredient('rice', 30),
+      ingredient('oatmeal', 10),
+      ingredient('beef', 10),
+      ingredient('broccoli', 15),
+      ingredient('egg', 10, stockTracking),
+    ]);
+  const eggMeal = meal('morning', 1, {
+    planned: { baseMenuId: 'rice-oatmeal-porridge', toppingIngredientIds: ['beef', 'egg'] },
+  });
+
+  it('상비 재료는 재고가 없어도 차감하지 않고 보류하지 않는다', () => {
+    const result = reconcileMeals(
+      baseInput(at('2026-08-17', '10:00'), { meals: [eggMeal], catalog: withEgg('pantry') }),
+    );
+
+    expect(result.statusChanges).toEqual([{ mealId: 'morning-1', status: 'consumed' }]);
+    expect(result.newEntries.map((entry) => entry.batchId)).toEqual(['rice', 'oatmeal', 'beef']);
+    expect(result.held).toEqual([]);
+  });
+
+  it('상비 재료의 소비 이벤트는 되돌리지 않는다', () => {
+    const eggBatch = batch('egg', '2026-08-15', 10, 'egg');
+    const settled = settle(
+      baseInput(at('2026-08-17', '10:00'), {
+        meals: [eggMeal],
+        catalog: withEgg('cubes'),
+        batches: [...fullStockBatches, eggBatch],
+        entries: [...fullStockEntries, received('egg', 10)],
+      }),
+    );
+    expect(stockOf(settled, 'egg')).toBe(9);
+
+    const result = reconcileMeals({ ...settled, catalog: withEgg('pantry') });
+
+    expect(result).toEqual({ statusChanges: [], newEntries: [], held: [] });
   });
 });
 

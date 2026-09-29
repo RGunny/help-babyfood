@@ -125,14 +125,14 @@ describe('데일리 브리프 도구', () => {
     expect(today.stock.find((row: any) => row.ingredientName === '소고기')).toMatchObject({
       total: 12,
       fresh: 12,
-      pendingDiscard: 0,
+      overdue: 0,
     });
     expect(today.shortages).toMatchObject([
       { ingredientName: '브로콜리', firstShortageDate: TODAY, shortfallCubes: 5, plannedCubes: 5 },
     ]);
     expect(today.thresholdAlerts).toMatchObject([{ ingredientName: '브로콜리', total: 0, thresholdCubes: 3 }]);
     expect(today.expiryAlerts).toMatchObject([
-      { ingredientName: '소고기', cookedOn: '2026-09-08', expiryDate: TODAY, remaining: 2, expiry: { kind: 'due_today' } },
+      { ingredientName: '소고기', cookedOn: '2026-09-08', expiryDate: TODAY, remaining: 2, expiry: { kind: 'due_soon', daysLeft: 0 } },
     ]);
   });
 

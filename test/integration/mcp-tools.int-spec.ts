@@ -257,7 +257,7 @@ describe('재고', () => {
 
     const status = await call('get_stock_status');
     const beef = status.ingredients.find((row: any) => row.ingredientName === '소고기');
-    expect([beef.total, beef.fresh, beef.pendingDiscard]).toEqual([8, 8, 0]);
+    expect([beef.total, beef.fresh, beef.overdue]).toEqual([8, 8, 0]);
   });
 
   it('같은 멱등키로 두 번 부르면 배치가 하나다', async () => {
@@ -345,7 +345,7 @@ describe('재고', () => {
 
     const status = await call('get_stock_status');
     const beef = status.ingredients.find((row: any) => row.ingredientName === '소고기');
-    expect([beef.total, beef.pendingDiscard]).toEqual([3, 3]);
+    expect([beef.total, beef.overdue]).toEqual([3, 3]);
     expect(status.expiryAlerts).toHaveLength(1);
     expect(status.expiryAlerts[0].ingredientName).toBe('소고기');
   });
@@ -781,7 +781,7 @@ describe('예측과 알람 설정', () => {
     });
     expect(
       (await call('get_stock_status')).ingredients.find((row: any) => row.ingredientName === '소고기')
-        .pendingDiscard,
+        .overdue,
     ).toBe(0);
 
     await call('update_alert_settings', {
@@ -793,7 +793,7 @@ describe('예측과 알람 설정', () => {
 
     expect(
       (await call('get_stock_status')).ingredients.find((row: any) => row.ingredientName === '소고기')
-        .pendingDiscard,
+        .overdue,
     ).toBe(4);
   });
 });

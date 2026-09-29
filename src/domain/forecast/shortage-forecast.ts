@@ -35,10 +35,12 @@ export interface ForecastInput {
  * A fixed threshold cannot tell beef used every day from cucumber used twice; the plan can.
  */
 export function forecastShortage(input: ForecastInput): IngredientForecast[] {
-  const ingredientById = new Map(input.ingredients.map((ingredient) => [ingredient.id, ingredient]));
+  // Pantry ingredients are never short, so they get no forecast and their needs are skipped below.
+  const tracked = input.ingredients.filter((ingredient) => ingredient.stockTracking === 'cubes');
+  const ingredientById = new Map(tracked.map((ingredient) => [ingredient.id, ingredient]));
   const remaining = remainingByBatch(input.entries);
   const forecasts = new Map(
-    input.ingredients.map((ingredient) => [
+    tracked.map((ingredient) => [
       ingredient.id,
       {
         ingredientId: ingredient.id,

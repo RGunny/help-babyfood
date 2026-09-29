@@ -15,11 +15,11 @@ const TODAY = '2026-09-22';
 const MEAL_TIME = '10:00';
 
 const INGREDIENTS: Ingredient[] = [
-  { id: 'rice', name: '쌀', aliases: [], category: 'base', servingWeightGram: 30 },
-  { id: 'oatmeal', name: '오트밀', aliases: [], category: 'base', servingWeightGram: 10 },
-  { id: 'beef', name: '소고기', aliases: [], category: 'meat', servingWeightGram: 10 },
-  { id: 'broccoli', name: '브로콜리', aliases: [], category: 'vegetable', servingWeightGram: 15 },
-  { id: 'pea', name: '완두콩', aliases: [], category: 'vegetable', servingWeightGram: 15 },
+  { id: 'rice', name: '쌀', aliases: [], category: 'base', servingWeightGram: 30, stockTracking: 'cubes' },
+  { id: 'oatmeal', name: '오트밀', aliases: [], category: 'base', servingWeightGram: 10, stockTracking: 'cubes' },
+  { id: 'beef', name: '소고기', aliases: [], category: 'meat', servingWeightGram: 10, stockTracking: 'cubes' },
+  { id: 'broccoli', name: '브로콜리', aliases: [], category: 'vegetable', servingWeightGram: 15, stockTracking: 'cubes' },
+  { id: 'pea', name: '완두콩', aliases: [], category: 'vegetable', servingWeightGram: 15, stockTracking: 'cubes' },
 ];
 
 const PORRIDGE: Menu = {
@@ -240,7 +240,7 @@ describe('데일리 브리프', () => {
       expect(today.stock.find((row) => row.name === '브로콜리')).toMatchObject({
         total: 12,
         fresh: 9,
-        pendingDiscard: 3,
+        overdue: 3,
       });
     });
 
@@ -311,13 +311,13 @@ describe('데일리 브리프', () => {
       });
 
       expect(today.expiryAlerts).toMatchObject([
-        { name: '오트밀', expiryDate: dateOf(1), remaining: 2, stage: { kind: 'due_tomorrow' } },
-        { name: '소고기', expiryDate: TODAY, remaining: 3, stage: { kind: 'due_today' } },
+        { name: '오트밀', expiryDate: dateOf(1), remaining: 2, stage: { kind: 'due_soon', daysLeft: 1 } },
+        { name: '소고기', expiryDate: TODAY, remaining: 3, stage: { kind: 'due_soon', daysLeft: 0 } },
         {
           name: '브로콜리',
           expiryDate: '2026-09-19',
           remaining: 4,
-          stage: { kind: 'pending_discard', overdueDays: 3 },
+          stage: { kind: 'overdue', overdueDays: 3 },
         },
       ]);
     });

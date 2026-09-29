@@ -66,7 +66,7 @@ export interface BriefStockRow {
   readonly name: string;
   readonly total: number;
   readonly fresh: number;
-  readonly pendingDiscard: number;
+  readonly overdue: number;
   readonly weightMismatched: number;
   /** Date the plan uses the last deductible cube. Null when stock outlasts the plan. */
   readonly depletionDate: LocalDate | null;
@@ -214,7 +214,7 @@ export function buildDailyBrief(input: DailyBriefInput): DailyBrief {
       name: nameOf(stock.ingredientId),
       total: stock.total,
       fresh: stock.fresh,
-      pendingDiscard: stock.pendingDiscard,
+      overdue: stock.overdue,
       weightMismatched: stock.weightMismatched,
       depletionDate: forecasts.get(stock.ingredientId)?.depletionDate ?? null,
     })),

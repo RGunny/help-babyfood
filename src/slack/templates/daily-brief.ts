@@ -24,7 +24,7 @@ const STOCK_COLUMNS: readonly TableColumn<IngredientRow>[] = [
   { header: '재료', wrapped: true, cell: (row) => row.name },
   { header: '합계', align: 'right', cell: (row) => row.total },
   { header: '가용', align: 'right', cell: (row) => row.fresh },
-  { header: '폐기대기', align: 'right', cell: (row) => row.pendingDiscard },
+  { header: '폐기대기', align: 'right', cell: (row) => row.overdue },
   {
     header: '소진 예상',
     align: 'center',
@@ -155,7 +155,7 @@ function expiryBlocks(alerts: readonly BriefExpiryAlert[]): SlackBlock[] {
  */
 function discardButtons(alerts: readonly BriefExpiryAlert[]): SlackBlock[] {
   const pending = alerts
-    .filter((alert) => alert.stage.kind === 'pending_discard')
+    .filter((alert) => alert.stage.kind === 'overdue')
     .toSorted((a, b) => a.cookedOn.localeCompare(b.cookedOn));
   if (pending.length === 0) return [];
 

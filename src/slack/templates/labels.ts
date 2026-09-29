@@ -17,11 +17,11 @@ export function stageLabel(stage: ExpiryStage): string {
   switch (stage.kind) {
     case 'fresh':
       return '기한 여유';
-    case 'due_tomorrow':
-      return '내일 기한';
-    case 'due_today':
-      return '오늘 기한';
-    case 'pending_discard':
+    case 'due_soon':
+      if (stage.daysLeft === 0) return '오늘 기한';
+      if (stage.daysLeft === 1) return '내일 기한';
+      return `기한 ${stage.daysLeft}일 전`;
+    case 'overdue':
       return `기한 ${stage.overdueDays}일 초과, 폐기 대기`;
   }
 }

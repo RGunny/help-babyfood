@@ -14,12 +14,12 @@ const START = '2026-08-31';
 const TODAY = '2026-09-26';
 
 const INGREDIENTS: Ingredient[] = [
-  { id: 'rice', name: '쌀', aliases: [], category: 'base', servingWeightGram: 30 },
-  { id: 'oatmeal', name: '오트밀', aliases: [], category: 'base', servingWeightGram: 10 },
-  { id: 'flour', name: '밀가루', aliases: [], category: 'high_risk_allergen', servingWeightGram: 10 },
-  { id: 'beef', name: '소고기', aliases: [], category: 'meat', servingWeightGram: 10 },
-  { id: 'pea', name: '완두콩', aliases: [], category: 'vegetable', servingWeightGram: 15 },
-  { id: 'egg', name: '계란', aliases: [], category: 'high_risk_allergen', servingWeightGram: 10 },
+  { id: 'rice', name: '쌀', aliases: [], category: 'base', servingWeightGram: 30, stockTracking: 'cubes' },
+  { id: 'oatmeal', name: '오트밀', aliases: [], category: 'base', servingWeightGram: 10, stockTracking: 'cubes' },
+  { id: 'flour', name: '밀가루', aliases: [], category: 'high_risk_allergen', servingWeightGram: 10, stockTracking: 'cubes' },
+  { id: 'beef', name: '소고기', aliases: [], category: 'meat', servingWeightGram: 10, stockTracking: 'cubes' },
+  { id: 'pea', name: '완두콩', aliases: [], category: 'vegetable', servingWeightGram: 15, stockTracking: 'cubes' },
+  { id: 'egg', name: '계란', aliases: [], category: 'high_risk_allergen', servingWeightGram: 10, stockTracking: 'cubes' },
 ];
 
 const PORRIDGE: Menu = {

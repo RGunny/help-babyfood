@@ -234,7 +234,7 @@ describe('재고현황', () => {
 
     const status = await services.stock.getStockStatus(house.id);
     const broccoli = status.ingredients.find((row) => row.ingredientId === house.ingredientId('브로콜리'));
-    expect(broccoli).toMatchObject({ total: 12, fresh: 9, pendingDiscard: 3 });
+    expect(broccoli).toMatchObject({ total: 12, fresh: 9, overdue: 3 });
   });
 
   it('중량이 다른 배치는 합계에 들어가되 따로 센다', async () => {

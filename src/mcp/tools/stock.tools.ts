@@ -54,7 +54,7 @@ export function registerStockTools(server: McpServer, deps: ToolDeps, caller: Ca
             ingredientName: names.ingredient(stock.ingredientId),
             total: stock.total,
             fresh: stock.fresh,
-            pendingDiscard: stock.pendingDiscard,
+            overdue: stock.overdue,
             weightMismatched: stock.weightMismatched,
             batches: stock.batches.map((batch) => ({
               batchId: batch.batch.id,

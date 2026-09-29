@@ -53,13 +53,13 @@ function stockRows(count: number): BriefStockRow[] {
     name: `아주 긴 이름을 가진 재료 번호 ${index}`,
     total: 12,
     fresh: 10,
-    pendingDiscard: 2,
+    overdue: 2,
     weightMismatched: 1,
     depletionDate: localDate('2026-10-01'),
   }));
 }
 
-function pendingDiscard(count: number): BriefExpiryAlert[] {
+function overdue(count: number): BriefExpiryAlert[] {
   return Array.from({ length: count }, (_, index) => ({
     batchId: randomUUID(),
     ingredientId: randomUUID(),
@@ -68,7 +68,7 @@ function pendingDiscard(count: number): BriefExpiryAlert[] {
     cookedOn: localDate(`2026-08-${String(30 - (index % 30)).padStart(2, '0')}`),
     expiryDate: localDate('2026-09-10'),
     remaining: 3,
-    stage: { kind: 'pending_discard', overdueDays: 12 },
+    stage: { kind: 'overdue', overdueDays: 12 },
   }));
 }
 
@@ -96,7 +96,7 @@ function crowdedBrief(): DailyBrief {
       total: 1,
       thresholdCubes: 5,
     })),
-    expiryAlerts: pendingDiscard(100),
+    expiryAlerts: overdue(100),
     attention: {
       heldDeductions: rows.map((row) => ({
         ingredientId: row.ingredientId,
@@ -158,7 +158,7 @@ function stockRow(name: string, overrides: Partial<BriefStockRow> = {}): BriefSt
     name,
     total: 5,
     fresh: 5,
-    pendingDiscard: 0,
+    overdue: 0,
     weightMismatched: 0,
     depletionDate: null,
     ...overrides,
@@ -215,8 +215,8 @@ describe('브리프 렌더링', () => {
 
   it('폐기 대기 배치마다 폐기 버튼이 하나이고 값은 그 배치를 가리킨다', () => {
     const alerts = [
-      ...pendingDiscard(3),
-      { ...pendingDiscard(1)[0], stage: { kind: 'due_today' } } satisfies BriefExpiryAlert,
+      ...overdue(3),
+      { ...overdue(1)[0], stage: { kind: 'due_soon', daysLeft: 0 } } satisfies BriefExpiryAlert,
     ];
     const { blocks } = renderBrief(brief({ expiryAlerts: alerts }));
 
@@ -284,7 +284,7 @@ describe('브리프 렌더링', () => {
   describe('재고현황 표', () => {
     it('머리 행과 재료마다 한 행이고, 값이 없는 칸은 –다', () => {
       const { blocks } = renderBrief(
-        brief({ stock: [stockRow('소고기', { total: 12, fresh: 10, pendingDiscard: 2 })] }),
+        brief({ stock: [stockRow('소고기', { total: 12, fresh: 10, overdue: 2 })] }),
       );
 
       expect(tableRows(blocks)).toEqual([
@@ -317,7 +317,7 @@ describe('브리프 렌더링', () => {
         brief({
           stock: [
             stockRow('나머지'),
-            stockRow('폐기대기', { pendingDiscard: 1 }),
+            stockRow('폐기대기', { overdue: 1 }),
             threshold,
             stockRow('늦게 소진', { depletionDate: localDate('2026-10-05') }),
             stockRow('먼저 소진', { depletionDate: localDate('2026-09-25') }),
@@ -413,7 +413,7 @@ describe('브리프 렌더링', () => {
             name: '소고기',
             total: 12,
             fresh: 10,
-            pendingDiscard: 2,
+            overdue: 2,
             weightMismatched: 0,
             depletionDate: null,
           },
@@ -429,8 +429,8 @@ describe('브리프 렌더링', () => {
         ],
         thresholdAlerts: [{ ingredientId, name: '오이', total: 1, thresholdCubes: 3 }],
         expiryAlerts: [
-          { ...pendingDiscard(1)[0], name: '애호박', stage: { kind: 'due_tomorrow' } },
-          { ...pendingDiscard(1)[0], name: '당근', stage: { kind: 'fresh' } },
+          { ...overdue(1)[0], name: '애호박', stage: { kind: 'due_soon', daysLeft: 1 } },
+          { ...overdue(1)[0], name: '당근', stage: { kind: 'fresh' } },
         ],
         attention: {
           heldDeductions: [{ ingredientId, name: '소고기', cubes: 1, date: DATE, slot: null }],
@@ -473,14 +473,14 @@ describe('브리프 v2 페이로드', () => {
       name: string,
       total: number,
       fresh: number,
-      pendingDiscard: number,
+      overdue: number,
       depletion: string | null,
     ) => ({
       ingredientId: id(n),
       name,
       total,
       fresh,
-      pendingDiscard,
+      overdue,
       weightMismatched: 0,
       depletionDate: depletion === null ? null : localDate(depletion),
     });
@@ -498,7 +498,7 @@ describe('브리프 v2 페이로드', () => {
       cookedOn: localDate(cookedOn),
       expiryDate: localDate(expiryDate),
       remaining,
-      stage: { kind: 'pending_discard' as const, overdueDays },
+      stage: { kind: 'overdue' as const, overdueDays },
     });
 
     const message = renderBrief(

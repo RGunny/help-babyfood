@@ -82,7 +82,7 @@ function stockRow(row: IngredientRow): string[] {
     escapeMarkdown(row.name),
     String(row.total),
     String(row.fresh),
-    String(row.pendingDiscard),
+    String(row.overdue),
     row.depletionDate === null ? '–' : shortDate(row.depletionDate),
     row.thresholdCubes === null ? '–' : String(row.thresholdCubes),
   ];

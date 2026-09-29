@@ -163,7 +163,7 @@ describe('알람 설정', () => {
     // 임계일 14일이면 8/24까지 가용이다.
     const before = await services.stock.getStockStatus(house.id);
     expect(before.ingredients.find((row) => row.ingredientId === house.ingredientId('브로콜리'))).toMatchObject({
-      pendingDiscard: 0,
+      overdue: 0,
     });
 
     await services.alertSettings.update({
@@ -176,7 +176,7 @@ describe('알람 설정', () => {
 
     const after = await services.stock.getStockStatus(house.id);
     expect(after.ingredients.find((row) => row.ingredientId === house.ingredientId('브로콜리'))).toMatchObject({
-      pendingDiscard: 4,
+      overdue: 4,
     });
   });
 

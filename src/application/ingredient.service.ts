@@ -61,6 +61,7 @@ export class IngredientService {
           aliases: command.aliases ?? [],
           category: command.category,
           servingWeightGram: requirePositiveWeight(command.servingWeightGram),
+          stockTracking: 'cubes' as const,
           verifiedBeforeMigration: command.verifiedBeforeMigration ?? false,
         };
         // 카탈로그 생성자가 이름·별칭 충돌을 던진다. 같은 규칙을 애플리케이션에 다시 쓰지 않는다.

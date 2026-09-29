@@ -18,6 +18,7 @@ export interface IngredientRow {
   name: string;
   category: Ingredient['category'];
   servingWeightGram: number;
+  stockTracking: Ingredient['stockTracking'];
   labels: { label: string; isCanonical: boolean; position: number }[];
 }
 
@@ -31,6 +32,7 @@ export function toIngredient(row: IngredientRow): Ingredient {
       .map((label) => label.label),
     category: row.category,
     servingWeightGram: row.servingWeightGram,
+    stockTracking: row.stockTracking,
   };
 }
 

@@ -47,7 +47,7 @@ export function byUrgency(a: IngredientRow, b: IngredientRow): number {
   }
   const threshold = Number(b.thresholdCubes !== null) - Number(a.thresholdCubes !== null);
   if (threshold !== 0) return threshold;
-  return Number(b.pendingDiscard > 0) - Number(a.pendingDiscard > 0);
+  return Number(b.overdue > 0) - Number(a.overdue > 0);
 }
 
 export function expiryLine(alert: BriefExpiryAlert, escape: Escape): string {

@@ -20,8 +20,24 @@ const broccoli: Ingredient = {
   aliases: [],
   category: 'vegetable',
   servingWeightGram: 15,
+  stockTracking: 'cubes',
 };
-const beef: Ingredient = { id: 'beef', name: '소고기', aliases: [], category: 'meat', servingWeightGram: 10 };
+const beef: Ingredient = {
+  id: 'beef',
+  name: '소고기',
+  aliases: [],
+  category: 'meat',
+  servingWeightGram: 10,
+  stockTracking: 'cubes',
+};
+const egg: Ingredient = {
+  id: 'egg',
+  name: '계란',
+  aliases: [],
+  category: 'high_risk_allergen',
+  servingWeightGram: 10,
+  stockTracking: 'pantry',
+};
 
 const batch = (id: string, cookedOn: string, overrides: Partial<CookedBatch> = {}): CookedBatch => ({
   id,
@@ -139,23 +155,27 @@ describe('임계일', () => {
     expect(expiryDateOf(sep20, DEFAULT_SHELF_LIFE_DAYS)).toBe('2026-10-04');
   });
 
-  it('임계일 이틀 전까지는 알람이 없다', () => {
+  it('임계일 4일 전은 여유다', () => {
     expect(stageOn('2026-09-20')).toEqual({ kind: 'fresh' });
-    expect(stageOn('2026-10-02')).toEqual({ kind: 'fresh' });
+    expect(stageOn('2026-09-30')).toEqual({ kind: 'fresh' });
   });
 
-  it('10/3은 전일, 10/4는 당일이다', () => {
-    expect(stageOn('2026-10-03')).toEqual({ kind: 'due_tomorrow' });
-    expect(stageOn('2026-10-04')).toEqual({ kind: 'due_today' });
+  it('임계일 3일 전부터 임박이고 daysLeft가 3이다', () => {
+    expect(stageOn('2026-10-01')).toEqual({ kind: 'due_soon', daysLeft: 3 });
+    expect(stageOn('2026-10-03')).toEqual({ kind: 'due_soon', daysLeft: 1 });
   });
 
-  it('10/5부터 폐기 대기이고 초과 일수가 매일 늘어난다', () => {
-    expect(stageOn('2026-10-05')).toEqual({ kind: 'pending_discard', overdueDays: 1 });
-    expect(stageOn('2026-10-11')).toEqual({ kind: 'pending_discard', overdueDays: 7 });
+  it('임계일 당일은 임박이고 daysLeft가 0이다', () => {
+    expect(stageOn('2026-10-04')).toEqual({ kind: 'due_soon', daysLeft: 0 });
+  });
+
+  it('임계일 다음 날은 지남이고 overdueDays가 1이다', () => {
+    expect(stageOn('2026-10-05')).toEqual({ kind: 'overdue', overdueDays: 1 });
+    expect(stageOn('2026-10-11')).toEqual({ kind: 'overdue', overdueDays: 7 });
   });
 
   it('임계일 설정값을 바꾸면 그 값으로 계산한다', () => {
-    expect(expiryStageOn(sep20, localDate('2026-09-27'), 7)).toEqual({ kind: 'due_today' });
+    expect(expiryStageOn(sep20, localDate('2026-09-27'), 7)).toEqual({ kind: 'due_soon', daysLeft: 0 });
   });
 });
 
@@ -269,16 +289,16 @@ describe('재고현황', () => {
 
   it('재고가 없는 재료는 0으로 나온다', () => {
     expect(summarizeStock([broccoli], [], [], today, DEFAULT_SHELF_LIFE_DAYS)).toEqual([
-      { ingredientId: 'broccoli', total: 0, fresh: 0, pendingDiscard: 0, weightMismatched: 0, batches: [] },
+      { ingredientId: 'broccoli', total: 0, fresh: 0, overdue: 0, weightMismatched: 0, batches: [] },
     ]);
   });
 
-  it('브로콜리 12 (가용 9 / 폐기 대기 3): 폐기 대기도 합계에 포함한다', () => {
+  it('임계일이 지난 큐브는 overdue에 세고 fresh에서 빠진다', () => {
     const entries = [receiveBatch(expired, 3), receiveBatch(fresh, 9)];
 
     const [stock] = summarizeStock([broccoli], [fresh, expired], entries, today, DEFAULT_SHELF_LIFE_DAYS);
 
-    expect(stock).toMatchObject({ total: 12, fresh: 9, pendingDiscard: 3, weightMismatched: 0 });
+    expect(stock).toMatchObject({ total: 12, fresh: 9, overdue: 3, weightMismatched: 0 });
     expect(stock.batches.map((batchStock) => batchStock.batch.id)).toEqual(['expired', 'fresh']);
   });
 
@@ -301,33 +321,43 @@ describe('재고현황', () => {
     ]);
   });
 
-  it('임계일 알람 대상은 전일, 당일, 폐기 대기 배치다', () => {
+  it('임박 배치도 임계일 알람 대상이다', () => {
+    const dueIn3Days = batch('due-in-3-days', '2026-09-10');
     const dueTomorrow = batch('due-tomorrow', '2026-09-08');
     const entries = [
       receiveBatch(expired, 3),
       receiveBatch(fresh, 9),
+      receiveBatch(dueIn3Days, 1),
       receiveBatch(dueTomorrow, 2),
       receiveBatch(beefBatch, 6),
     ];
 
     const stocks = summarizeStock(
       [broccoli, beef],
-      [expired, fresh, dueTomorrow, beefBatch],
+      [expired, fresh, dueIn3Days, dueTomorrow, beefBatch],
       entries,
       today,
       DEFAULT_SHELF_LIFE_DAYS,
     );
 
-    expect(
-      batchesNeedingExpiryAlert(stocks).map((batchStock) => [batchStock.batch.id, batchStock.expiry.kind]),
-    ).toEqual([
-      ['expired', 'pending_discard'],
-      ['due-tomorrow', 'due_tomorrow'],
-      ['beef-batch', 'due_today'],
+    expect(batchesNeedingExpiryAlert(stocks).map((batchStock) => [batchStock.batch.id, batchStock.expiry])).toEqual([
+      ['expired', { kind: 'overdue', overdueDays: 6 }],
+      ['due-tomorrow', { kind: 'due_soon', daysLeft: 1 }],
+      ['due-in-3-days', { kind: 'due_soon', daysLeft: 3 }],
+      ['beef-batch', { kind: 'due_soon', daysLeft: 0 }],
     ]);
   });
 
-  it('폐기 대기 배치가 소비로 0개가 되면 알람 대상에서 빠진다', () => {
+  it('상비 재료는 재고 현황에 행이 없다', () => {
+    const eggBatch = batch('egg-batch', '2026-09-20', { ingredientId: 'egg', cubeWeightGram: 10 });
+    const entries = [receiveBatch(fresh, 9), receiveBatch(eggBatch, 2)];
+
+    const stocks = summarizeStock([broccoli, egg], [fresh, eggBatch], entries, today, DEFAULT_SHELF_LIFE_DAYS);
+
+    expect(stocks.map((stock) => stock.ingredientId)).toEqual(['broccoli']);
+  });
+
+  it('임계 지남 배치가 소비로 0개가 되면 알람 대상에서 빠진다', () => {
     const entries = [receiveBatch(expired, 1), consumed('expired', 'meal-1')];
 
     const stocks = summarizeStock([broccoli], [expired], entries, today, DEFAULT_SHELF_LIFE_DAYS);
@@ -342,7 +372,7 @@ describe('재고현황', () => {
 
     const stocks = summarizeStock([broccoli], [expired, fresh], entries, today, DEFAULT_SHELF_LIFE_DAYS);
 
-    expect(stocks[0]).toMatchObject({ total: 9, pendingDiscard: 0 });
+    expect(stocks[0]).toMatchObject({ total: 9, overdue: 0 });
     expect(batchesNeedingExpiryAlert(stocks)).toEqual([]);
   });
 

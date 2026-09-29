@@ -24,6 +24,7 @@ describe('재료 매핑', () => {
         name: '브로콜리',
         category: 'vegetable',
         servingWeightGram: 15,
+        stockTracking: 'cubes',
         labels: [
           { label: '브로콜리', isCanonical: true, position: 0 },
           { label: '브로컬리', isCanonical: false, position: 1 },
@@ -35,6 +36,7 @@ describe('재료 매핑', () => {
       aliases: ['브로컬리'],
       category: 'vegetable',
       servingWeightGram: 15,
+      stockTracking: 'cubes',
     });
   });
 
@@ -44,6 +46,7 @@ describe('재료 매핑', () => {
       name: '브로콜리',
       category: 'vegetable',
       servingWeightGram: 15,
+      stockTracking: 'cubes',
       labels: [
         { label: '두번째', isCanonical: false, position: 2 },
         { label: '브로콜리', isCanonical: true, position: 0 },
@@ -59,6 +62,7 @@ describe('재료 매핑', () => {
       name: '쌀',
       category: 'base',
       servingWeightGram: 30,
+      stockTracking: 'cubes',
       labels: [{ label: '쌀', isCanonical: true, position: 0 }],
     });
     expect(ingredient.aliases).toEqual([]);
