@@ -37,6 +37,15 @@ enum IngredientCategory {
   @@map("ingredient_category")
 }
 
+/// 재고를 세는 방식. cubes는 냉동 큐브를 배치와 원장으로 추적하고, pantry는 늘 집에 있어
+/// 세지 않는다(땅콩버터, 계란, 밀가루). 상비 재료는 차감, 보류, 예측, 임계일에서 빠진다.
+enum StockTracking {
+  cubes
+  pantry
+
+  @@map("stock_tracking")
+}
+
 enum LedgerEntryType {
   received
   meal_consumed
@@ -203,6 +212,8 @@ model Ingredient {
   category                IngredientCategory
   /// 현재 1회분 중량. 큐브 중량이 이 값과 다른 배치는 자동 차감에서 빠진다.
   servingWeightGram       Int                @map("serving_weight_gram")
+  /// 재고를 세는 방식. 새 재료는 cubes로 시작하고 상비 전환은 update_ingredient_stock_tracking으로 한다.
+  stockTracking           StockTracking      @map("stock_tracking")
   /// 이관 때 이미 검증이 끝난 재료로 등록했다. 급여 이력이 없어도 검증완료로 시작한다.
   verifiedBeforeMigration Boolean            @default(false) @map("verified_before_migration")
   createdAt               DateTime           @default(now()) @map("created_at") @db.Timestamptz(3)

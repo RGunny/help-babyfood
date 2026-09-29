@@ -26,7 +26,7 @@ describe('DATE 칼럼 왕복', () => {
     async (value) => {
       const household = await householdId();
       const ingredient = await prisma.ingredient.create({
-        data: { householdId: household, name: '브로콜리', category: 'vegetable', servingWeightGram: 15 },
+        data: { householdId: household, name: '브로콜리', category: 'vegetable', servingWeightGram: 15, stockTracking: 'cubes' },
       });
       const created = await prisma.cookedBatch.create({
         data: {

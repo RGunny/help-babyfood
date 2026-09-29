@@ -331,6 +331,7 @@ class PrismaWriteContext implements HouseholdWriteContext {
         name: draft.name,
         category: draft.category,
         servingWeightGram: draft.servingWeightGram,
+        stockTracking: 'cubes',
         verifiedBeforeMigration: draft.verifiedBeforeMigration,
       },
       select: { id: true },

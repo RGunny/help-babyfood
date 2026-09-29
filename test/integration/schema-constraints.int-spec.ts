@@ -12,7 +12,7 @@ const household = async () =>
 
 const ingredient = async (householdId: string, servingWeightGram = 15) =>
   prisma.ingredient.create({
-    data: { householdId, name: '브로콜리', category: 'vegetable', servingWeightGram },
+    data: { householdId, name: '브로콜리', category: 'vegetable', servingWeightGram, stockTracking: 'cubes' },
     select: { id: true },
   });
 
@@ -135,7 +135,7 @@ describe('재고 하한', () => {
     const { id: householdId } = await household();
     await expect(
       prisma.ingredient.create({
-        data: { householdId, name: '소고기', category: 'meat', servingWeightGram: 0 },
+        data: { householdId, name: '소고기', category: 'meat', servingWeightGram: 0, stockTracking: 'cubes' },
       }),
     ).rejects.toThrow(/serving_weight_gram/);
   });
@@ -146,7 +146,7 @@ describe('재료 이름과 별칭', () => {
     const { id: householdId } = await household();
     const { id: broccoli } = await ingredient(householdId);
     const { id: zucchini } = await prisma.ingredient.create({
-      data: { householdId, name: '애호박', category: 'vegetable', servingWeightGram: 15 },
+      data: { householdId, name: '애호박', category: 'vegetable', servingWeightGram: 15, stockTracking: 'cubes' },
       select: { id: true },
     });
     await prisma.ingredientLabel.create({
@@ -207,8 +207,8 @@ describe('식단 규칙', () => {
   it('조합 금지 쌍은 재료 id 순서로 정규화해야 한다', async () => {
     const { id: householdId } = await household();
     const ids = await Promise.all([
-      prisma.ingredient.create({ data: { householdId, name: '소고기', category: 'meat', servingWeightGram: 10 }, select: { id: true } }),
-      prisma.ingredient.create({ data: { householdId, name: '고구마', category: 'vegetable', servingWeightGram: 15 }, select: { id: true } }),
+      prisma.ingredient.create({ data: { householdId, name: '소고기', category: 'meat', servingWeightGram: 10, stockTracking: 'cubes' }, select: { id: true } }),
+      prisma.ingredient.create({ data: { householdId, name: '고구마', category: 'vegetable', servingWeightGram: 15, stockTracking: 'cubes' }, select: { id: true } }),
     ]);
     const [low, high] = ids.map((row) => row.id).sort();
     await expect(
