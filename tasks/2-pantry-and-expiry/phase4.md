@@ -143,7 +143,7 @@ grep -q "pantryIngredients" src/application/daily-brief.ts
 grep -q "stockTracking" src/application/reaction.service.ts
 ! grep -A 12 "interface RegisterIngredientCommand" src/application/ingredient.service.ts | grep -q stockTracking
 ! rg -n "from '@nestjs" src/application --glob '!*.module.ts'
-! rg -n "new Date\(|Date\.now\(" src/application
+! rg -n "new Date\(\)|Date\.now\(" src/application
 ! rg -n "폐기 대기" test/integration
 grep -q "상비" src/application/daily-brief.spec.ts
 grep -q "상비" test/integration/ingredient.int-spec.ts

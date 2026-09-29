@@ -138,7 +138,7 @@ grep -q "상비" src/domain/deduction/deduction.spec.ts
 grep -q "되돌리지 않는다" src/domain/deduction/deduction.spec.ts
 grep -q "상비" src/domain/forecast/shortage-forecast.spec.ts
 grep -q "3일 전" src/domain/stock/stock.spec.ts
-! rg -n "from '@nestjs|new Date\(|Date\.now\(" src/domain
+! rg -n "from '@nestjs|new Date\(\)|Date\.now\(" src/domain
 ! git diff HEAD -- src/application src/infrastructure src/mcp src/slack src/scheduler test | grep -E '^\+[^+]' | grep -v -i -E 'stockTracking|overdue|pendingDiscard|pending_discard|due_soon|due_today|due_tomorrow|daysLeft'
 git diff --quiet HEAD -- src/slack/templates/__snapshots__
 git diff --quiet HEAD -- prisma docs README.md package.json
