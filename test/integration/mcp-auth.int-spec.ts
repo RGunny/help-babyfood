@@ -86,15 +86,20 @@ describe('MCP 인증', () => {
 
   it('만료 직전까지는 유효하고 시각이 지나면 거부된다', async () => {
     const house = await household();
-    // 2026-09-23 10:00 KST에 만료되는 토큰.
+    // 실제 내일 10:00 KST에 만료되는 토큰. 만료일을 고정하면 실제 날짜가 그날을 지난 뒤부터
+    // 깨진다. MCP SDK가 AuthInfo.expiresAt을 실제 시계로도 보기 때문에 우리 시계만 옮겨서는
+    // 살릴 수 없고, DB의 expires_at > created_at CHECK도 발급 자체를 막는다.
+    const tomorrow = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Seoul' }).format(
+      new Date(Date.now() + 86_400_000),
+    );
     const { token } = await issueToken(services.prisma, house, {
-      expiresAt: new Date('2026-09-23T01:00:00Z'),
+      expiresAt: new Date(`${tomorrow}T10:00:00+09:00`),
     });
 
-    clock.set('2026-09-23', '09:59');
+    clock.set(tomorrow, '09:59');
     expect((await post({ authorization: `Bearer ${token}` })).status).toBe(200);
 
-    clock.set('2026-09-23', '10:01');
+    clock.set(tomorrow, '10:01');
     expect((await post({ authorization: `Bearer ${token}` })).status).toBe(401);
   });
 

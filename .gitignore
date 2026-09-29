@@ -13,7 +13,13 @@ src/generated/
 # 세션 작업 기록은 저장소에 넣지 않는다.
 cc-logs/
 
-# 하네스 스크립트의 파이썬 캐시.
-scripts/__pycache__/
+# 하네스 운영 기록. 스펙(phase*.md, docs-diff, break-it)은 추적하고 상태와 세션 출력만 뺀다.
+tasks/**/state.json
+tasks/**/*-output.json
+tasks/**/*.log
+scripts/**/__pycache__/
 
 .DS_Store
+
+# Claude 진입 파일. 전역 gitignore가 CLAUDE.md를 막으므로 여기서 되살린다.
+!CLAUDE.md

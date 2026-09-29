@@ -30,10 +30,7 @@ Slack (휴대폰) ──버튼 응답 (HTTP)────> src/slack/inbound (서
                                                                                                   └──> src/slack/outbound ──> Slack Web API (메시지, 캔버스)
 ```
 
-- `src/domain` 은 프레임워크, DB, 시스템 시계를 모른다. 현재 시각도 인자로 받는다. 1단계에서 만든 뒤 5단계까지 한 줄도 바뀌지 않았고, 6단계가 회차 투영 함수 하나(`src/domain/ingredient/exposure-projection.ts`)를 더했다.
-- `src/application` 은 NestJS를 모른다. 서비스는 생성자에 포트를 받는 평범한 클래스이고, 모듈이 `useFactory`로 조립한다.
-- `src/mcp` 와 `src/scheduler` 는 어댑터다. 재고 규칙을 다시 쓰지 않고 애플리케이션을 부른다.
-- `src/slack` 도 어댑터이고 재고 규칙을 다시 쓰지 않는다. 브리프는 스케줄러가 `BriefDispatchService`를 부르고 그 서비스가 `BriefDeliveryPort`를 거쳐 `src/slack/outbound`로 내보낸다. 상태판(채널 캔버스)은 `BoardSyncService`가 `BoardPublisherPort`를 거쳐 같은 곳으로 내보낸다. 버튼 응답은 `src/slack/inbound`로 들어와 MCP 도구와 같은 `NoFeedService`, `ReactionService`, `StockService`를 부른다.
+계층 규칙과 금지 목록은 `AGENTS.md`에 있다. 에이전트와 사람이 같은 파일을 읽는다.
 
 ## 개발 환경
 
@@ -101,6 +98,10 @@ pnpm slack-link --list                                                   # 연�
 ## 배포
 
 배포 설정은 저장소에 있다. `railway.json`이 빌드를 `Dockerfile`로 정하고, 배포 전에 `preDeployCommand`로 `pnpm db:deploy`를 돌려 마이그레이션을 적용한다. 헬스체크는 `/health`다. 다만 2026-09-26 기준으로 Railway 서비스가 이 파일을 읽지 않고 있어서, 마이그레이션은 배포 뒤 손으로 적용한다(`docs/user-intervention.md` 6번). Railway 프로젝트와 Postgres를 만들고, PITR을 켜고, 서비스 환경 변수를 넣는 일은 콘솔에서 사람이 한다. 순서와 넣을 값은 `docs/user-intervention.md` 3번에 있다.
+
+## 하네스
+
+기능 추가는 phase 단위로 한다. 요구는 `docs/backlog.md`에 적고, `plan-and-build` 스킬이 `tech-critic-lead` 결재를 거쳐 `tasks/{id}-{name}/`을 만들면 `python3 scripts/harness/run_phases.py {id}-{name}`이 phase마다 새 Claude 세션을 돌린다. 세션의 보고는 믿지 않고 러너가 scope 밖 변경, `src/domain` 변경, `pnpm typecheck && pnpm lint && pnpm test`를 따로 검사한다. 규격은 `prompts/task-create.md`, 설정은 `harness.json`, 문서 게이트는 `scripts/harness/check_docs.py`다. 무인 세션은 `.env`가 없는 worktree에서 돌린다(`docs/README.md`).
 
 ## 지금 되는 것과 안 되는 것
 

@@ -1,0 +1,11 @@
+#!/bin/sh
+# harness-hook
+# 커밋 전: 문서 허용 목록과 줄 수 상한만 본다. 테스트는 pre-push와 러너가 돈다.
+set -e
+cd "$(git rev-parse --show-toplevel)"
+py="$(command -v python3 || true)"
+if [ -z "$py" ] || ! "$py" -c 'import sys; sys.exit(0 if sys.version_info >= (3, 11) else 1)'; then
+  echo "pre-commit: PATH의 python3를 3.11 이상으로 맞추세요 (현재: $(${py:-python3} --version 2>&1))" >&2
+  exit 1
+fi
+"$py" scripts/harness/check_docs.py --staged

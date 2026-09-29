@@ -1,0 +1,24 @@
+# 깨끗한 러너에서 로컬 훅과 같은 게이트를 돈다. 통합 테스트는 Testcontainers라 서비스 컨테이너가 필요 없다.
+name: ci
+on:
+  push:
+    branches: [main]
+  pull_request:
+env:
+  TZ: Asia/Seoul
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: corepack enable
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm prisma:generate
+      - run: python3 scripts/harness/check_docs.py
+      - run: pnpm typecheck
+      - run: pnpm lint
+      - run: pnpm test
+      - run: pnpm test:int

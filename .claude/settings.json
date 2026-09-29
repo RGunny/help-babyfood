@@ -11,9 +11,14 @@
       "Bash(git diff:*)",
       "Bash(git log:*)",
       "Bash(git show:*)",
-      "Bash(python3 scripts/preflight.py:*)",
+      "Bash(python3 scripts/harness/preflight.py:*)",
+      "Bash(python3 scripts/harness/verify.py:*)",
+      "Bash(python3 scripts/harness/check_docs.py:*)",
+      "Bash(python3 scripts/harness/gen_docs_diff.py:*)",
+      "Bash(python3 scripts/harness/run_phases.py:*)",
+      "Bash(python3 scripts/harness/install_hooks.py:*)",
       "Bash(python3 scripts/export-prompts.py:*)",
-      "Bash(python3 scripts/gen-docs-diff.py:*)"
+      "Bash(python3 -m unittest:*)"
     ]
   }
 }

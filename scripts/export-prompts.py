@@ -15,7 +15,8 @@ import re
 import sys
 from pathlib import Path
 
-from _utils import find_project_root
+sys.path.insert(0, str(Path(__file__).resolve().parent / "harness"))
+from _utils import find_project_root  # noqa: E402
 
 ROOT = find_project_root()
 PROMPTS_DIR = ROOT / "prompts"

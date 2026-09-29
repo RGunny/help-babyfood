@@ -1,0 +1,19 @@
+{
+  "project": "help-babyfood",
+  "mode": "runner",
+  "model": null,
+  "verify": {
+    "fast": ["pnpm typecheck", "pnpm lint", "pnpm test"],
+    "full": ["pnpm test:int", "pnpm test:cov"],
+    "arch": ["pnpm arch"]
+  },
+  "verify_after_phase": "fast",
+  "preflight": ["python3>=3.11", "node>=24", "pnpm", "docker"],
+  "docs": {
+    "diff_paths": ["docs/", "README.md"],
+    "allowlist": "scripts/doc-paths.json"
+  },
+  "frozen_paths": ["src/domain/"],
+  "limits": { "phase_timeout_s": 2700, "budget_usd": 5, "retries": 2 },
+  "commit": { "mode": "auto", "language": "en" }
+}

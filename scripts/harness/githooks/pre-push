@@ -1,0 +1,12 @@
+#!/bin/sh
+# harness-hook
+# 푸시 전: 허용 목록 전수 검사와 verify.fast. 러너 세션(HARNESS_HEADLESS=1)은 푸시하지 않으므로 여기 오지 않는다.
+set -e
+cd "$(git rev-parse --show-toplevel)"
+py="$(command -v python3 || true)"
+if [ -z "$py" ] || ! "$py" -c 'import sys; sys.exit(0 if sys.version_info >= (3, 11) else 1)'; then
+  echo "pre-push: PATH의 python3를 3.11 이상으로 맞추세요" >&2
+  exit 1
+fi
+"$py" scripts/harness/check_docs.py
+"$py" scripts/harness/verify.py fast

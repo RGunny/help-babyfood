@@ -1,0 +1,22 @@
+{
+  "allowed": [
+    "AGENTS.md",
+    "CLAUDE.md",
+    "README.md",
+    "docs/README.md",
+    "docs/product-plan.md",
+    "docs/user-intervention.md",
+    "docs/backlog.md",
+    "docs/adr/*.md",
+    "prompts/*.md",
+    "tasks/*/*.md",
+    ".agents/*.md",
+    ".agents/skills/*/SKILL.md",
+    ".claude/agents/*.md",
+    "scripts/harness/**/*.md",
+    "src/**/__snapshots__/*.md"
+  ],
+  "lineLimits": {
+    "AGENTS.md": 50
+  }
+}
