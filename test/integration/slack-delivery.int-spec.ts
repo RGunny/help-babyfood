@@ -4,6 +4,7 @@ import { DailyBrief } from '../../src/application/daily-brief.js';
 import { localDate } from '../../src/domain/shared/local-date.js';
 import { SlackBriefDelivery } from '../../src/slack/outbound/slack-brief-delivery.js';
 import { PrismaSlackMessageLog, SlackMessageLog } from '../../src/slack/outbound/slack-message-log.js';
+import { dailyBriefTemplate } from '../../src/slack/templates/daily-brief.js';
 import { TestServices, at, buildServices, seedHouseholdOnly } from './setup/fixtures.js';
 
 // 발송 어댑터가 Slack Web API의 응답을 어떻게 판정하는지 본다. 가짜 서버가 chat.postMessage를
@@ -173,7 +174,7 @@ describe('Slack 발송', () => {
       channelId: CHANNEL_ID,
       messageTs: ts,
       templateKey: 'daily_brief',
-      templateVersion: 3,
+      templateVersion: dailyBriefTemplate.version,
       postedAt: services.clock.instant(),
     });
     expect(row.payload).toEqual({ text: received[0].body.text, blocks: received[0].body.blocks });
