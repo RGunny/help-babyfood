@@ -1,4 +1,4 @@
-import { EMPTY_CELL, MAX_TABLE_CHARACTERS, MAX_TABLE_ROWS, TableColumn, numberCell, table, textCell } from './table.js';
+import { EMPTY_CELL, MAX_TABLE_CHARACTERS, MAX_TABLE_ROWS, TableColumn, table, textCell } from './table.js';
 
 interface Row {
   readonly name: string;
@@ -14,8 +14,8 @@ const rows = (count: number, name = (index: number) => `재료 ${index}`): Row[]
   Array.from({ length: count }, (_, index) => ({ name: name(index), count: index }));
 
 describe('표', () => {
-  it('숫자 칸은 숫자 value와 text를 함께 가진다', () => {
-    expect(numberCell(3)).toEqual({ type: 'raw_number', value: 3, text: '3' });
+  it('숫자 칸도 raw_text다. 모바일 앱이 raw_number 셀을 그리지 않는다', () => {
+    expect(table(COLUMNS, [{ name: '쌀', count: 3 }]).block.rows[1][1]).toEqual({ type: 'raw_text', text: '3' });
   });
 
   it('raw_text는 빈 문자열을 받지 않으므로 빈 칸은 –로 채운다', () => {

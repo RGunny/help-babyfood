@@ -6,7 +6,7 @@ import { localTime } from '../../domain/shared/local-time.js';
 import { decodeAction } from '../actions.js';
 import { MAX_ACTION_ELEMENTS, MAX_BLOCKS, MAX_SECTION_TEXT, SlackBlock } from './blocks.js';
 import { dailyBriefTemplate } from './daily-brief.js';
-import { MAX_TABLE_CHARACTERS, MAX_TABLE_ROWS, NumberTableBlock } from './table.js';
+import { MAX_TABLE_CHARACTERS, MAX_TABLE_ROWS, TextTableBlock } from './table.js';
 
 const renderBrief = (input: DailyBrief) => dailyBriefTemplate.render(input);
 
@@ -148,8 +148,8 @@ const contextText = (blocks: SlackBlock[]): string =>
     .filter((block): block is ContextBlock => block.type === 'context')
     .flatMap((block) => block.elements.map((element) => ('text' in element ? element.text : '')))
     .join('\n');
-const stockTable = (blocks: SlackBlock[]): NumberTableBlock | undefined =>
-  blocks.find((block): block is NumberTableBlock => block.type === 'table');
+const stockTable = (blocks: SlackBlock[]): TextTableBlock | undefined =>
+  blocks.find((block): block is TextTableBlock => block.type === 'table');
 /** The table as the parent reads it, one array of cell texts per row, header first. */
 const tableRows = (blocks: SlackBlock[]): string[][] =>
   stockTable(blocks)?.rows.map((row) => row.map((cell) => cell.text)) ?? [];
@@ -296,10 +296,10 @@ describe('브리프 렌더링', () => {
       ]);
     });
 
-    it('숫자 칸은 숫자 value와 표시할 text를 함께 싣는다. value만 있으면 Slack이 invalid_blocks로 거부한다', () => {
+    it('숫자 칸도 raw_text로 보낸다. 모바일 앱이 raw_number 셀을 비워 두기 때문이다', () => {
       const { blocks } = renderBrief(brief({ stock: [stockRow('소고기', { total: 12 })] }));
 
-      expect(stockTable(blocks)!.rows[1][1]).toEqual({ type: 'raw_number', value: 12, text: '12' });
+      expect(stockTable(blocks)!.rows[1][1]).toEqual({ type: 'raw_text', text: '12' });
     });
 
     it('소진 예상일은 MM-DD로 줄이고 임계개수에 닿은 재료는 임계 칸에 그 개수를 적는다', () => {
@@ -528,7 +528,7 @@ describe('브리프 렌더링', () => {
   });
 });
 
-describe('브리프 v3 페이로드', () => {
+describe('브리프 v4 페이로드', () => {
   // 레이아웃이 바뀌면 이 파일이 바뀐다. 그때 dailyBriefTemplate.version도 올렸는지 본다(ADR 0007).
   it('2026-09-26 운영 브리프와 같은 모양의 입력이 고정된 페이로드를 낸다', async () => {
     const id = (n: number) => `0199a1b2-c3d4-7e5f-8a9b-${String(n).padStart(12, '0')}`;
@@ -606,6 +606,6 @@ describe('브리프 v3 페이로드', () => {
       }),
     );
 
-    await expect(`${JSON.stringify(message, null, 2)}\n`).toMatchFileSnapshot('./__snapshots__/daily-brief.v3.json');
+    await expect(`${JSON.stringify(message, null, 2)}\n`).toMatchFileSnapshot('./__snapshots__/daily-brief.v4.json');
   });
 });

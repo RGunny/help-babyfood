@@ -94,18 +94,15 @@
             "text": "⏰ 소고기"
           },
           {
-            "type": "raw_number",
-            "value": 2,
+            "type": "raw_text",
             "text": "2"
           },
           {
-            "type": "raw_number",
-            "value": 0,
+            "type": "raw_text",
             "text": "0"
           },
           {
-            "type": "raw_number",
-            "value": 2,
+            "type": "raw_text",
             "text": "2"
           },
           {
@@ -127,18 +124,15 @@
             "text": "⏰ 브로콜리"
           },
           {
-            "type": "raw_number",
-            "value": 3,
+            "type": "raw_text",
             "text": "3"
           },
           {
-            "type": "raw_number",
-            "value": 0,
+            "type": "raw_text",
             "text": "0"
           },
           {
-            "type": "raw_number",
-            "value": 3,
+            "type": "raw_text",
             "text": "3"
           },
           {
@@ -160,18 +154,15 @@
             "text": "쌀"
           },
           {
-            "type": "raw_number",
-            "value": 5,
+            "type": "raw_text",
             "text": "5"
           },
           {
-            "type": "raw_number",
-            "value": 5,
+            "type": "raw_text",
             "text": "5"
           },
           {
-            "type": "raw_number",
-            "value": 0,
+            "type": "raw_text",
             "text": "0"
           },
           {
@@ -193,18 +184,15 @@
             "text": "오이"
           },
           {
-            "type": "raw_number",
-            "value": 0,
+            "type": "raw_text",
             "text": "0"
           },
           {
-            "type": "raw_number",
-            "value": 0,
+            "type": "raw_text",
             "text": "0"
           },
           {
-            "type": "raw_number",
-            "value": 0,
+            "type": "raw_text",
             "text": "0"
           },
           {
@@ -216,8 +204,7 @@
             "text": "–"
           },
           {
-            "type": "raw_number",
-            "value": 2,
+            "type": "raw_text",
             "text": "2"
           }
         ],
@@ -227,18 +214,15 @@
             "text": "⏰ 오트밀"
           },
           {
-            "type": "raw_number",
-            "value": 15,
+            "type": "raw_text",
             "text": "15"
           },
           {
-            "type": "raw_number",
-            "value": 15,
+            "type": "raw_text",
             "text": "15"
           },
           {
-            "type": "raw_number",
-            "value": 0,
+            "type": "raw_text",
             "text": "0"
           },
           {

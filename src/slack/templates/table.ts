@@ -1,14 +1,14 @@
 /**
- * A table cell. Slack's reference shows `raw_number` with `value` alone, and that is rejected with
- * `invalid_blocks` ("missing required field: text"); a string `value` is rejected too ("must
- * provide a number"). What Slack accepts, as posted to the channel on 2026-09-26, is a numeric
- * `value` and the `text` to show, together (ADR 0007). `numberCell` is the one place that builds it.
+ * A table cell. Every cell is `raw_text`, numbers included: the mobile app draws nothing in a
+ * `raw_number` cell, as seen in the channel on 2026-10-04, while the desktop app shows it (ADR
+ * 0007). Right alignment comes from `column_settings`, not from the cell type.
  */
-export type TableCell =
-  | { readonly type: 'raw_text'; readonly text: string }
-  | { readonly type: 'raw_number'; readonly value: number; readonly text: string };
+export interface TableCell {
+  readonly type: 'raw_text';
+  readonly text: string;
+}
 
-export interface NumberTableBlock {
+export interface TextTableBlock {
   readonly type: 'table';
   readonly rows: TableCell[][];
   readonly column_settings?: { readonly align?: 'left' | 'center' | 'right'; readonly is_wrapped?: boolean }[];
@@ -25,7 +25,7 @@ export interface TableColumn<Row> {
 }
 
 export interface TableResult {
-  readonly block: NumberTableBlock;
+  readonly block: TextTableBlock;
   /** Rows left out to stay within the limits. The caller says so under the table. */
   readonly omitted: number;
 }
@@ -39,10 +39,6 @@ export const EMPTY_CELL = '–';
 
 export function textCell(text: string): TableCell {
   return { type: 'raw_text', text: text === '' ? EMPTY_CELL : text };
-}
-
-export function numberCell(value: number): TableCell {
-  return { type: 'raw_number', value, text: String(value) };
 }
 
 /**
@@ -80,7 +76,7 @@ export function table<Row>(columns: readonly TableColumn<Row>[], rows: readonly 
 
 function toCell(value: CellValue): TableCell {
   if (value === null) return textCell(EMPTY_CELL);
-  return typeof value === 'number' ? numberCell(value) : textCell(value);
+  return textCell(typeof value === 'number' ? String(value) : value);
 }
 
 function charactersOf(cells: readonly TableCell[]): number {

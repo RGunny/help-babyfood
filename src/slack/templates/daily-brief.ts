@@ -49,7 +49,7 @@ const STOCK_COLUMNS: readonly TableColumn<IngredientRow>[] = [
  */
 export const dailyBriefTemplate: MessageTemplate<DailyBrief> = {
   key: 'daily_brief',
-  version: 3,
+  version: 4,
   render(brief) {
     const dayPart = brief.dayNumber === null ? '' : ` · ${brief.dayNumber}일차`;
     const title = `${brief.date} 이유식 브리프${dayPart}`;

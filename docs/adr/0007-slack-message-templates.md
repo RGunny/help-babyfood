@@ -21,7 +21,7 @@
 
 | 템플릿 | key | version |
 |---|---|---|
-| 일일 브리프 | `daily_brief` | 2 |
+| 일일 브리프 | `daily_brief` | 4 |
 | 새 재료 반응 기록 | `reaction_prompt` | 1 |
 
 버튼 답장 문구는 `response_url`로 가는 문장이라 Block Kit 메시지가 아니다. 그래도 양식이므로 같은 디렉터리의 `button-reply.ts`에 모은다.
@@ -55,7 +55,7 @@ DB에 문자열 템플릿(Handlebars, Liquid)을 두는 방식은 택하지 않�
 
 반응 기록 후속 메시지도 표로 바꾸지 않는다. 버튼이 메시지의 전부이고, 재료마다 actions 블록 하나를 두는 지금 구조가 그대로 맞다.
 
-### 표 셀은 문서 예시와 다르게 만든다
+### 표 셀은 숫자도 `raw_text`다
 
 2026-09-26 운영 채널에서 실제로 보내 확인했다.
 
@@ -63,10 +63,13 @@ DB에 문자열 템플릿(Handlebars, Liquid)을 두는 방식은 택하지 않�
 |---|---|
 | `{ "type": "raw_number", "value": 2 }` (문서 예시의 필드) | `invalid_blocks`, `missing required field: text` |
 | `{ "type": "raw_number", "value": "2", "text": "2" }` | `invalid_blocks`, `must provide a number` |
-| `{ "type": "raw_number", "value": 2, "text": "2" }` | `ok: true` |
+| `{ "type": "raw_number", "value": 2, "text": "2" }` | `ok: true`. 데스크톱 앱은 숫자를 그리고, 모바일 앱은 칸을 비워 둔다(2026-10-04 확인) |
+| `{ "type": "raw_text", "text": "2" }` | `ok: true`. 데스크톱과 모바일 모두 그린다(2026-10-04 확인) |
 | 표 두 개를 가진 메시지 | `ok: true` |
 
-그래서 숫자 셀은 숫자 `value`와 표시용 `text`를 함께 넣는다. `src/slack/templates/table.ts`의 셀 함수 한 곳에서만 만든다. 이 사실은 공식 문서에 없어서, 셀 함수의 단위 테스트가 모양을 고정한다.
+~~그래서 숫자 셀은 숫자 `value`와 표시용 `text`를 함께 넣는다.~~ 2026-10-04에 뒤집었다. 부모는 브리프를 휴대폰으로 읽는데, 10-01부터 10-04까지의 브리프에서 합계·가용·임계 지남 열이 모바일 앱에서 비어 보였다. 같은 날 `raw_number` 표와 `raw_text` 표를 한 메시지에 넣어 보냈더니 `raw_text` 표만 숫자가 보였다. 공개된 Slack 문서와 SDK 저장소에는 이 차이가 적혀 있지 않다.
+
+그래서 모든 셀을 `raw_text`로 보낸다. 오른쪽 정렬은 `column_settings.align`이 맡으므로 셀 타입이 숫자가 아니어도 모양은 같다. 셀은 `src/slack/templates/table.ts`의 `textCell` 한 곳에서만 만들고, 단위 테스트가 숫자 칸의 모양을 고정한다. `raw_number`가 주는 것은 `data_table` 블록의 숫자 정렬인데, 브리프의 표는 정렬 기능이 없는 `table` 블록이라 잃는 것이 없다.
 
 ### 보낸 메시지는 `slack_message`에 남긴다
 
@@ -117,7 +120,8 @@ src/slack/inbound/SlackActionDispatcher ── templates/button-reply.ts, labels
 ## 대가와 남는 위험
 
 - 표의 모바일 표시를 문서가 말하지 않는다. 6열 표가 iOS 앱에서 가로로 스크롤되는지 잘리는지는 배포 뒤 사람이 확인한다.
-- `raw_number`의 필드 모양은 실측으로 정했고 문서와 다르다. Slack이 스키마를 바꾸면 브리프 전체가 `invalid_blocks`로 실패하고, 발송 로그의 `outcome_reason`에만 남는다.
+- 모바일 앱이 `raw_number` 셀을 비워 두는 것은 실측이고, Slack이 고치면 두 셀 타입의 차이가 사라진다. 그래도 `raw_text`로 돌아갈 이유는 없다.
+- 표의 다른 셀 타입이 모바일에서 어떻게 그려지는지는 보낸 적이 없어 모른다. 새 셀 타입을 쓰기 전에 휴대폰으로 본다.
 - 스냅숏 쓰기 실패를 삼키므로, 드물게 보낸 메시지의 스냅숏이 빠질 수 있다.
 - `version`을 사람이 올려야 한다. 스냅숏 테스트 파일이 바뀌는 변경은 버전도 함께 바뀌었는지 리뷰에서 본다.
 - 스냅숏은 가정당 하루 1~3행이고, 행당 대략 5~10KB다. 1년에 가정당 약 1천 행이다. 정리 작업은 두지 않았다.

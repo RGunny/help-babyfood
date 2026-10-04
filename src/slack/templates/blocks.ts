@@ -8,14 +8,14 @@ import type {
   SectionBlock,
   TableBlock,
 } from '@slack/types';
-import type { NumberTableBlock } from './table.js';
+import type { TextTableBlock } from './table.js';
 
 /**
- * A block this server sends. `@slack/types` 3.1.0 types table cells as `raw_text` or `rich_text`
- * only, so its `TableBlock` is swapped for the one `table.ts` builds, which also carries
- * `raw_number` cells.
+ * A block this server sends. `@slack/types` 3.1.0 types a table cell as `raw_text` or a whole
+ * `rich_text` block, so its `TableBlock` is swapped for the one `table.ts` builds, whose cells are
+ * all `raw_text` and all carry a `text` the tests can read.
  */
-export type SlackBlock = Exclude<KnownBlock, TableBlock> | NumberTableBlock;
+export type SlackBlock = Exclude<KnownBlock, TableBlock> | TextTableBlock;
 
 /** What `chat.postMessage` takes besides the channel. `text` is the one line a notification shows. */
 export interface SlackMessage {
