@@ -113,7 +113,7 @@ describe('상태판 캔버스', () => {
   it('세 주의 달력과 재고, 확인 필요를 마크다운으로 낸다', async () => {
     const markdown = householdBoardTemplate.render(board());
 
-    await expect(markdown).toMatchFileSnapshot('./__snapshots__/household-board.v3.md');
+    await expect(markdown).toMatchFileSnapshot('./__snapshots__/household-board.v4.md');
   });
 
   it('오늘 열의 머리만 굵고 ▶가 붙는다', () => {

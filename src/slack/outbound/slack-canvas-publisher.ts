@@ -8,7 +8,7 @@ import { householdBoardTemplate } from '../templates/household-board.js';
 import { SLACK_API_BASE_URL, callSlackApi, isSlackApiError } from './slack-api.js';
 import { NOT_LINKED } from './slack-brief-delivery.js';
 
-/** The title the channel tab shows. The content's first line says the same. */
+/** The title the channel tab shows. The body does not repeat it: the mobile app draws the title itself. */
 export const CANVAS_TITLE = '이유식 상태판';
 
 /** Somebody made the channel canvas by hand. The server does not take it over; `pnpm slack-link --canvas` does. */

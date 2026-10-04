@@ -16,7 +16,7 @@
 | 6 | Railway 서비스 설정을 `railway.json`과 맞춘다 | 자동배포만 켜짐. 빌더·배포 전 명령·헬스체크는 아직 |
 | 7 | 버튼을 누를 구성원의 Slack 사용자 id 연결 | 아빠 연결함(`U097XRTNAP4`). 엄마는 아직 |
 | 8 | 대화에 노출된 봇 토큰 교체 | 안 함 |
-| 9 | 캔버스 스코프 추가와 상태판 캔버스 연결 | 끝남. 캔버스 `F0C4HPW0JP7`이 연결되어 서버가 채운다 |
+| 9 | 캔버스 스코프 추가와 상태판 캔버스 연결 | 끝남. 2026-10-04부터 캔버스 `F0C6K6UJWBC`가 연결되어 서버가 채운다 |
 | 10 | 재고 방식 마이그레이션과 상비 재료 전환 | 끝남. 2026-09-29 배포 뒤 마이그레이션 적용, 세 재료 상비 전환 |
 
 ## 1. GitHub에 push한다
@@ -154,7 +154,11 @@ Slack 사용자 id는 Slack에서 자기 프로필 → 점 세 개 메뉴 → "C
 railway ssh "node dist/scripts/link-slack.js --household 재하네 --canvas F0C4HPW0JP7"
 ```
 
-캔버스를 사람이 지웠다면 `slack_canvas` 행을 지워야 서버가 새로 만든다. 그 절차는 ADR 0008 "대가와 남는 위험"에 있다.
+캔버스가 지워지면 서버는 새로 만들지 못한다. 2026-10-04에 상태판 중복 표시를 조사하면서 봇이 `canvases.delete`로 `F0C4HPW0JP7`을 지웠는데, 이어진 `conversations.canvases.create`가 `free_team_canvas_tab_already_exists`로 거부됐다. 무료 플랜에서는 캔버스를 지워도 채널의 캔버스 탭이 남아 API로 새 캔버스를 붙일 수 없다. 복구는 사람이 채널의 캔버스 탭에서 캔버스를 새로 만들고 아래처럼 연결하는 것이다. 같은 날 그렇게 `F0C6K6UJWBC`를 만들어 연결했고 `pnpm slack-preview --template household_board`로 바로 채웠다.
+
+```bash
+railway ssh "node dist/scripts/link-slack.js --household 재하네 --canvas F0C6K6UJWBC"
+```
 
 ## 10. 재고 방식 마이그레이션과 상비 재료 전환
 

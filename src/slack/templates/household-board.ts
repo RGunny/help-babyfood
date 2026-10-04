@@ -20,7 +20,7 @@ const MAX_STOCK_ROWS = Math.floor(MAX_TABLE_CELLS / STOCK_HEADER.length) - 1;
  */
 export const householdBoardTemplate: CanvasTemplate<HouseholdBoard> = {
   key: 'household_board',
-  version: 3,
+  version: 4,
   render(board) {
     const parts = [
       titleLines(board),
@@ -32,10 +32,14 @@ export const householdBoardTemplate: CanvasTemplate<HouseholdBoard> = {
   },
 };
 
+/**
+ * The canvas title is the name; the body opens with the update line. A body H1 saying the same thing
+ * showed under the title as a second "이유식 상태판" in the mobile app (2026-10-04).
+ */
 function titleLines(board: HouseholdBoard): string[] {
   const { now, brief } = board;
   const today = brief.dayNumber === null ? '오늘은 급여일이 아닙니다' : `오늘 ${brief.dayNumber}일차`;
-  return [heading(1, '이유식 상태판'), `_${now.date} ${now.time} 갱신 · ${today}_`];
+  return [`_${now.date} ${now.time} 갱신 · ${today}_`];
 }
 
 function calendarLines(board: HouseholdBoard): string[] {
