@@ -74,8 +74,12 @@ def now_iso() -> str:
 
 
 def git(*args: str, cwd: Path, check: bool = True) -> subprocess.CompletedProcess:
-    """git을 실행한다. check=True면 실패를 HarnessError로 올린다."""
-    result = subprocess.run(["git", *args], cwd=str(cwd), capture_output=True, text=True)
+    """git을 실행한다. check=True면 실패를 HarnessError로 올린다.
+
+    core.quotepath를 꺼서 한글 경로가 "\\352\\270..."로 인용되지 않게 한다. CI 러너의 기본값은 켜짐이라
+    허용 목록 글롭이 prompts/1-기획과-도메인코어.md 같은 경로와 맞지 않았다.
+    """
+    result = subprocess.run(["git", "-c", "core.quotepath=false", *args], cwd=str(cwd), capture_output=True, text=True)
     if check and result.returncode != 0:
         raise HarnessError(f"git {' '.join(args)} 실패({result.returncode}): {result.stderr.strip()}")
     return result
