@@ -107,6 +107,7 @@ enum PublicationStatus {
 enum SlackTemplateKey {
   daily_brief
   reaction_prompt
+  stock_alert
 
   @@map("slack_template_key")
 }
@@ -148,6 +149,7 @@ model Household {
   memberTokens             MemberToken[]
   briefDeliveries          BriefDelivery[]
   reactionPromptDeliveries ReactionPromptDelivery[]
+  stockAlertDeliveries     StockAlertDelivery[]
   slackMessages            SlackMessage[]
   boardPublication         BoardPublication?
   slackCanvas              SlackCanvas?
@@ -568,6 +570,31 @@ model ReactionPromptDelivery {
 
   @@id([householdId, date, slot])
   @@map("reaction_prompt_delivery")
+}
+
+/// 재고 알람 메시지(ADR 0010). 가정마다 하루 한 건이고, 알람 항목이 없는 날은 skipped로 끝난다.
+model StockAlertDelivery {
+  householdId      String         @map("household_id") @db.Uuid
+  date             DateTime       @db.Date
+  status           DeliveryStatus
+  /// 몇 번째 시도인가. 클레임하는 순간 1부터 센다.
+  attempts         Int
+  /// 이 시도를 잡은 시각. pending인 채로 리스가 지나면 다른 tick이 다시 잡는다.
+  claimedAt        DateTime       @map("claimed_at") @db.Timestamptz(3)
+  /// failed일 때 다음 시도가 가능해지는 시각. 마지막 시도에도 채워지고,
+  /// 다시 잡히지 않게 막는 것은 이 값이 아니라 attempts 상한이다.
+  nextAttemptAt    DateTime?      @map("next_attempt_at") @db.Timestamptz(3)
+  sentAt           DateTime?      @map("sent_at") @db.Timestamptz(3)
+  /// failed면 오류 메시지, skipped면 건너뛴 사유.
+  outcomeReason    String?        @map("outcome_reason")
+  /// 보낸 메시지를 가리키는 값. Slack에서는 메시지 ts다.
+  messageReference String?        @map("message_reference")
+  updatedAt        DateTime       @map("updated_at") @db.Timestamptz(3)
+
+  household Household @relation(fields: [householdId], references: [id])
+
+  @@id([householdId, date])
+  @@map("stock_alert_delivery")
 }
 
 /// Slack에 보낸 메시지를 보낸 그대로 남긴다(ADR 0007). 발송 로그가 "보냈는가"를 말한다면

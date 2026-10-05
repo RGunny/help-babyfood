@@ -256,3 +256,24 @@ describe('구성원 토큰의 가정 일치', () => {
     ).rejects.toThrow(/member_token_member_household_fkey/);
   });
 });
+
+describe('재고 알람 발송 이력', () => {
+  const constraintNames = async (table: string) =>
+    (
+      await prisma.$queryRaw<{ conname: string }[]>`
+        SELECT conname FROM pg_constraint WHERE conrelid = ${table}::regclass
+      `
+    ).map(({ conname }) => conname);
+
+  it('재고 알람 발송 이력에 네 제약과 가정 FK가 걸려 있다', async () => {
+    expect(await constraintNames('stock_alert_delivery')).toEqual(
+      expect.arrayContaining([
+        'stock_alert_delivery_attempts_check',
+        'stock_alert_delivery_sent_check',
+        'stock_alert_delivery_failed_check',
+        'stock_alert_delivery_skipped_check',
+        'stock_alert_delivery_household_id_fkey',
+      ]),
+    );
+  });
+});
