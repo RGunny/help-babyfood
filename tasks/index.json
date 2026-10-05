@@ -17,6 +17,12 @@
       "name": "pantry-and-expiry",
       "dir": "2-pantry-and-expiry",
       "created_at": "2026-09-29T16:07:21+0900"
+    },
+    {
+      "id": 3,
+      "name": "stock-alert",
+      "dir": "3-stock-alert",
+      "created_at": "2026-10-05T18:51:54+0900"
     }
   ]
 }

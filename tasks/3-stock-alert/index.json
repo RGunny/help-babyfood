@@ -1,0 +1,104 @@
+{
+  "project": "help-babyfood",
+  "task": "stock-alert",
+  "prompt": "지금 재고알람이 전혀안와. 데일리브리프하면서 재고는 따로 노티주긴 해야하는거 아니야? 임계일이고 뭐고 사용자가 눈으로 하나하나 봐야하고, 심지어 재고 0은 작은글씨로 안보이게 나열식으로 모아놔서 볼수조차 없어. 이부분 제대로 개선안 가져와. / (개선안을 보고) 임계개수 4개. 식단표 바탕으로 남은 일수까지 계산하고싶지만 4개나 잘처리해. 같은채널 별도 메세지. 해결될때까지 매일. 아침만 보내.",
+  "phases": [
+    {
+      "phase": 0,
+      "name": "docs",
+      "scope": [
+        "docs/",
+        "README.md"
+      ],
+      "model": "claude-fable-5-1"
+    },
+    {
+      "phase": 1,
+      "name": "schema",
+      "scope": [
+        "prisma/",
+        "test/integration/schema-constraints.int-spec.ts"
+      ],
+      "requires": [
+        "docker"
+      ],
+      "model": "claude-opus-5-5"
+    },
+    {
+      "phase": 2,
+      "name": "delivery-log",
+      "scope": [
+        "src/application/ports/brief-delivery-log.port.ts",
+        "src/application/brief-dispatch.service.spec.ts",
+        "src/infrastructure/",
+        "test/integration/brief-delivery.int-spec.ts"
+      ],
+      "requires": [
+        "docker"
+      ],
+      "model": "claude-opus-5-5"
+    },
+    {
+      "phase": 3,
+      "name": "read-model",
+      "scope": [
+        "src/application/daily-brief.ts",
+        "src/application/daily-brief.spec.ts",
+        "src/application/ports/brief-delivery.port.ts",
+        "src/application/brief-dispatch.service.spec.ts",
+        "src/slack/templates/daily-brief.spec.ts",
+        "src/slack/templates/household-board.spec.ts",
+        "test/integration/slack-delivery.int-spec.ts"
+      ],
+      "model": "claude-fable-5-1"
+    },
+    {
+      "phase": 4,
+      "name": "slack",
+      "scope": [
+        "src/slack/",
+        "src/scripts/",
+        "test/integration/slack-delivery.int-spec.ts"
+      ],
+      "requires": [
+        "docker"
+      ],
+      "model": "claude-opus-5-5"
+    },
+    {
+      "phase": 5,
+      "name": "dispatch",
+      "scope": [
+        "src/application/",
+        "test/integration/brief-dispatch.int-spec.ts"
+      ],
+      "requires": [
+        "docker"
+      ],
+      "model": "claude-opus-5-5"
+    },
+    {
+      "phase": 6,
+      "name": "mcp",
+      "scope": [
+        "src/mcp/",
+        "test/integration/mcp-tools.int-spec.ts"
+      ],
+      "requires": [
+        "docker"
+      ],
+      "model": "claude-opus-5-5"
+    },
+    {
+      "phase": 7,
+      "name": "break-it",
+      "scope": [
+        "tasks/3-stock-alert/"
+      ],
+      "requires": [
+        "docker"
+      ],
+      "model": "claude-opus-5-5"
+    }
+  ]
+}
