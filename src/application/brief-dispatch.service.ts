@@ -8,16 +8,19 @@ import {
   DeliveryClaim,
   DeliveryDue,
   ReactionPromptClaim,
+  StockAlertClaim,
 } from './ports/brief-delivery-log.port.js';
 import { BriefDeliveryPort, DeliveryResult, ReactionPromptIngredient } from './ports/brief-delivery.port.js';
 import { ClockPort } from './ports/clock.port.js';
 
-export type DispatchTarget = 'brief' | 'reaction_prompt';
+export type DispatchTarget = 'brief' | 'reaction_prompt' | 'stock_alert';
 
 /** 그 끼니에 식단이 없다. 미급여를 등록했거나 식단이 끝난 날이다. */
 const NO_MEAL = 'no_meal';
 /** 먹이기는 했는데 관찰할 새 재료가 없다. 물어볼 것이 없다. */
 const NO_NEW_INGREDIENT = 'no_new_ingredient';
+/** 알람 항목이 없다. 재고가 식단을 덮고 임계개수 이하인 재료도 없는 날이다. */
+const NO_ALERT = 'no_alert';
 
 /** What one claim's turn in a sweep came to. A failure is a result, not an exception. */
 export type DispatchOutcome =
@@ -37,7 +40,8 @@ export type DispatchOutcome =
     };
 
 /**
- * Sends what is due this minute: today's brief, and the follow-up asking about a meal just fed.
+ * Sends what is due this minute: today's brief, the follow-up asking about a meal just fed, and
+ * the stock alert that goes out on its own every day until stock covers the plan again.
  *
  * Claim first, build the brief after. The claim is a cheap insert that decides who sends, while
  * `DailyBriefService.get` walks the plan, the ledger and the forecast, so the expensive half runs
@@ -61,6 +65,10 @@ export class BriefDispatchService {
    * A household whose delivery throws is reported and the sweep goes on, the way the reconciliation
    * sweep does. What is not swallowed is a failure of the log itself: if the row recording the
    * failure cannot be written the database is gone, and the next tick starts over.
+   *
+   * The stock alert goes last. Claims sit outside the try, so a claim that throws stops every loop
+   * after it, and a server up before the alert table's migration is applied throws on that claim.
+   * Last, the only thing it blocks is the alert itself (ADR 0010).
    */
   async runEveryHousehold(): Promise<DispatchOutcome[]> {
     const now = this.clock.now();
@@ -79,6 +87,9 @@ export class BriefDispatchService {
     }
     for (const claim of await this.log.claimDueReactionPrompts(due)) {
       outcomes.push(await this.dispatchReactionPrompt(claim, instant));
+    }
+    for (const claim of await this.log.claimDueStockAlerts(due)) {
+      outcomes.push(await this.dispatchStockAlert(claim, instant));
     }
     return outcomes;
   }
@@ -135,6 +146,32 @@ export class BriefDispatchService {
         date: claim.date,
         slot: claim.slot,
         ingredients,
+      });
+      return await this.record(target, claim, result, instant);
+    } catch (error) {
+      return await this.fail(target, claim, error, instant);
+    }
+  }
+
+  /**
+   * The stock alert of ADR 0010, sent as its own message rather than inside the brief.
+   *
+   * The items are what the brief worked out; this only asks whether there are any. A day with none
+   * is closed, not released: stock that runs low later that day is told the next morning.
+   */
+  private async dispatchStockAlert(claim: StockAlertClaim, instant: Date): Promise<DispatchOutcome> {
+    const target = 'stock_alert';
+    const { householdId } = claim;
+    try {
+      const brief = await this.brief.get(householdId);
+      if (brief.stockAlert.items.length === 0) {
+        await this.log.recordSkipped(claim, NO_ALERT, instant);
+        return { kind: 'skipped', target, householdId, reason: NO_ALERT };
+      }
+
+      const result = await this.delivery.deliverStockAlert(householdId, {
+        date: claim.date,
+        alert: brief.stockAlert,
       });
       return await this.record(target, claim, result, instant);
     } catch (error) {

@@ -1,9 +1,10 @@
-import { BriefDispatchService } from '../../src/application/brief-dispatch.service.js';
+import { BriefDispatchService, DispatchOutcome, DispatchTarget } from '../../src/application/brief-dispatch.service.js';
 import { DailyBrief } from '../../src/application/daily-brief.js';
 import {
   BriefDeliveryPort,
   DeliveryResult,
   ReactionPrompt,
+  StockAlertMessage,
 } from '../../src/application/ports/brief-delivery.port.js';
 import { localDate } from '../../src/domain/shared/local-date.js';
 import { PrismaBriefDeliveryLog } from '../../src/infrastructure/prisma/brief-delivery-log.repository.js';
@@ -21,8 +22,10 @@ type Outcome = DeliveryResult | { readonly kind: 'throw'; readonly error: string
 class FakeBriefDelivery implements BriefDeliveryPort {
   readonly briefs: DailyBrief[] = [];
   readonly prompts: ReactionPrompt[] = [];
+  readonly alerts: StockAlertMessage[] = [];
   brief: Outcome = { kind: 'sent', reference: 'ts-brief' };
   prompt: Outcome = { kind: 'sent', reference: 'ts-prompt' };
+  alert: Outcome = { kind: 'sent', reference: 'ts-alert' };
 
   async deliverDailyBrief(_householdId: string, brief: DailyBrief): Promise<DeliveryResult> {
     this.briefs.push(brief);
@@ -33,11 +36,21 @@ class FakeBriefDelivery implements BriefDeliveryPort {
     this.prompts.push(prompt);
     return settle(this.prompt);
   }
+
+  async deliverStockAlert(_householdId: string, message: StockAlertMessage): Promise<DeliveryResult> {
+    this.alerts.push(message);
+    return settle(this.alert);
+  }
 }
 
 function settle(outcome: Outcome): DeliveryResult {
   if (outcome.kind === 'throw') throw new Error(outcome.error);
   return outcome;
+}
+
+/** 쓸기 결과 중 한 갈래만. 재고 알람이 같은 배열에 더해져도 각 갈래의 기대값은 그대로다. */
+function only(target: DispatchTarget, outcomes: readonly DispatchOutcome[]): DispatchOutcome[] {
+  return outcomes.filter((outcome) => outcome.target === target);
 }
 
 let services: TestServices;
@@ -65,6 +78,9 @@ afterAll(async () => {
 
 const briefRow = async (householdId: string) =>
   await services.prisma.briefDelivery.findFirst({ where: { householdId } });
+
+const alertRow = async (householdId: string) =>
+  await services.prisma.stockAlertDelivery.findFirst({ where: { householdId } });
 
 const promptRow = async (householdId: string) =>
   await services.prisma.reactionPromptDelivery.findFirst({ where: { householdId } });
@@ -96,7 +112,7 @@ describe('브리프 발송', () => {
     const householdId = await briefOnlyHousehold();
     services.clock.set(TODAY, '07:29');
 
-    expect(await dispatch.runEveryHousehold()).toEqual([]);
+    expect(only('brief', await dispatch.runEveryHousehold())).toEqual([]);
     expect(delivery.briefs).toEqual([]);
     expect(await briefRow(householdId)).toBeNull();
   });
@@ -107,7 +123,7 @@ describe('브리프 발송', () => {
 
     const outcomes = await dispatch.runEveryHousehold();
 
-    expect(outcomes).toEqual([{ kind: 'sent', target: 'brief', householdId }]);
+    expect(only('brief', outcomes)).toEqual([{ kind: 'sent', target: 'brief', householdId }]);
     expect(delivery.briefs).toHaveLength(1);
     const row = await briefRow(householdId);
     expect(row?.status).toBe('sent');
@@ -121,7 +137,7 @@ describe('브리프 발송', () => {
     await dispatch.runEveryHousehold();
 
     services.clock.set(TODAY, '08:30');
-    expect(await dispatch.runEveryHousehold()).toEqual([]);
+    expect(only('brief', await dispatch.runEveryHousehold())).toEqual([]);
     expect(delivery.briefs).toHaveLength(1);
     expect((await briefRow(householdId))?.attempts).toBe(1);
   });
@@ -133,7 +149,7 @@ describe('브리프 발송', () => {
 
     const outcomes = await dispatch.runEveryHousehold();
 
-    expect(outcomes.map((outcome) => outcome.kind)).toEqual(['failed']);
+    expect(only('brief', outcomes).map((outcome) => outcome.kind)).toEqual(['failed']);
     const row = await briefRow(householdId);
     expect(row?.status).toBe('failed');
     expect(row?.outcomeReason).toBe('channel_not_found');
@@ -147,7 +163,7 @@ describe('브리프 발송', () => {
     await dispatch.runEveryHousehold();
 
     services.clock.set(TODAY, '07:30');
-    expect(await dispatch.runEveryHousehold()).toEqual([]);
+    expect(only('brief', await dispatch.runEveryHousehold())).toEqual([]);
     expect(delivery.briefs).toHaveLength(1);
   });
 
@@ -161,7 +177,7 @@ describe('브리프 발송', () => {
     services.clock.set(TODAY, '07:31');
     const outcomes = await dispatch.runEveryHousehold();
 
-    expect(outcomes).toEqual([{ kind: 'sent', target: 'brief', householdId }]);
+    expect(only('brief', outcomes)).toEqual([{ kind: 'sent', target: 'brief', householdId }]);
     expect(delivery.briefs).toHaveLength(2);
     const row = await briefRow(householdId);
     expect(row?.status).toBe('sent');
@@ -176,13 +192,13 @@ describe('브리프 발송', () => {
 
     const outcomes = await dispatch.runEveryHousehold();
 
-    expect(outcomes).toEqual([
+    expect(only('brief', outcomes)).toEqual([
       { kind: 'skipped', target: 'brief', householdId, reason: 'no_channel_linked' },
     ]);
     expect((await briefRow(householdId))?.status).toBe('skipped');
 
     services.clock.set(TODAY, '09:00');
-    expect(await dispatch.runEveryHousehold()).toEqual([]);
+    expect(only('brief', await dispatch.runEveryHousehold())).toEqual([]);
     expect(delivery.briefs).toHaveLength(1);
   });
 });
@@ -252,7 +268,72 @@ describe('후속 메시지의 세 갈래', () => {
     services.clock.set(TODAY, '10:01');
     const second = await dispatch.runEveryHousehold();
 
-    expect(second.filter((outcome) => outcome.target === 'reaction_prompt')).toEqual([]);
+    expect(only('reaction_prompt', second)).toEqual([]);
     expect(delivery.prompts).toEqual([]);
+  });
+});
+
+describe('재고 알람 발송', () => {
+  /** 재료와 끼니와 식단만 있고 입고가 없는 가정. 저녁 식단이라 브리프 시각에 후속 메시지가 섞이지 않는다. */
+  async function shortHousehold(): Promise<Household> {
+    return await seedHousehold(services, { mealCount: 3, slotStartDate: TODAY, mealTime: '18:00' });
+  }
+
+  it('재고가 식단보다 모자란 가정은 브리프 시각에 재고 알람이 sent가 된다', async () => {
+    const house = await shortHousehold();
+    services.clock.set(TODAY, '07:30');
+
+    const outcomes = await dispatch.runEveryHousehold();
+
+    expect(only('stock_alert', outcomes)).toEqual([{ kind: 'sent', target: 'stock_alert', householdId: house.id }]);
+    expect(delivery.alerts).toHaveLength(1);
+    expect(delivery.alerts[0]?.date).toBe(TODAY);
+    const rice = delivery.alerts[0]?.alert.items.find((item) => item.ingredientId === house.ingredientId('쌀'));
+    expect(['urgent', 'upcoming']).toContain(rice?.urgency);
+    const row = await alertRow(house.id);
+    expect(row?.status).toBe('sent');
+    expect(row?.messageReference).toBe('ts-alert');
+  });
+
+  it('알람 항목이 없는 가정은 no_alert로 skipped가 되고 보내지 않는다', async () => {
+    const householdId = await briefOnlyHousehold();
+    services.clock.set(TODAY, '07:30');
+
+    const outcomes = await dispatch.runEveryHousehold();
+
+    expect(only('stock_alert', outcomes)).toEqual([
+      { kind: 'skipped', target: 'stock_alert', householdId, reason: 'no_alert' },
+    ]);
+    expect(delivery.alerts).toEqual([]);
+    const row = await alertRow(householdId);
+    expect(row?.status).toBe('skipped');
+    expect(row?.outcomeReason).toBe('no_alert');
+  });
+
+  it('같은 날 다시 돌려도 재고 알람을 두 번 보내지 않는다', async () => {
+    const house = await shortHousehold();
+    services.clock.set(TODAY, '07:30');
+    await dispatch.runEveryHousehold();
+
+    services.clock.set(TODAY, '09:00');
+    expect(only('stock_alert', await dispatch.runEveryHousehold())).toEqual([]);
+    expect(delivery.alerts).toHaveLength(1);
+    expect((await alertRow(house.id))?.attempts).toBe(1);
+  });
+
+  it('재고 알람 발송이 실패해도 그날 브리프의 기록은 sent 그대로다', async () => {
+    // 알람과 브리프의 발송 이력은 서로 다른 행이다.
+    const house = await shortHousehold();
+    delivery.alert = { kind: 'throw', error: 'channel_not_found' };
+    services.clock.set(TODAY, '07:30');
+
+    const outcomes = await dispatch.runEveryHousehold();
+
+    expect(only('brief', outcomes)).toEqual([{ kind: 'sent', target: 'brief', householdId: house.id }]);
+    expect(only('stock_alert', outcomes).map((outcome) => outcome.kind)).toEqual(['failed']);
+    expect((await briefRow(house.id))?.status).toBe('sent');
+    const row = await alertRow(house.id);
+    expect(row?.status).toBe('failed');
+    expect(row?.outcomeReason).toBe('channel_not_found');
   });
 });

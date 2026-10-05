@@ -45,4 +45,5 @@ export type DeliveryResult =
 export interface BriefDeliveryPort {
   deliverDailyBrief(householdId: string, brief: DailyBrief): Promise<DeliveryResult>;
   deliverReactionPrompt(householdId: string, prompt: ReactionPrompt): Promise<DeliveryResult>;
+  deliverStockAlert(householdId: string, message: StockAlertMessage): Promise<DeliveryResult>;
 }

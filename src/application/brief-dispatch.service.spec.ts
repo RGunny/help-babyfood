@@ -3,7 +3,7 @@ import { localTime } from '../domain/shared/local-time.js';
 import { MealSlot } from '../domain/shared/meal-slot.js';
 import { CLAIM_LEASE_SECONDS, MAX_DELIVERY_ATTEMPTS, nextAttemptAt } from './brief-dispatch.policy.js';
 import { BriefDispatchService } from './brief-dispatch.service.js';
-import { BriefMealItem, BriefNewIngredient, BriefSlot, DailyBrief } from './daily-brief.js';
+import { BriefMealItem, BriefNewIngredient, BriefSlot, BriefStockAlertItem, DailyBrief } from './daily-brief.js';
 import { DailyBriefService } from './daily-brief.service.js';
 import {
   BriefDeliveryLogPort,
@@ -13,7 +13,7 @@ import {
   ReactionPromptClaim,
   StockAlertClaim,
 } from './ports/brief-delivery-log.port.js';
-import { BriefDeliveryPort, DeliveryResult, ReactionPrompt } from './ports/brief-delivery.port.js';
+import { BriefDeliveryPort, DeliveryResult, ReactionPrompt, StockAlertMessage } from './ports/brief-delivery.port.js';
 import { ClockPort } from './ports/clock.port.js';
 
 const DATE = localDate('2026-09-23');
@@ -26,6 +26,8 @@ const SENT: DeliveryResult = { kind: 'sent', reference: 'ts-1' };
  */
 class RecordingLog implements BriefDeliveryLogPort {
   readonly due: DeliveryDue[] = [];
+  /** Which claim methods were called, in order. */
+  readonly claims: string[] = [];
   readonly sent: { claim: DeliveryClaim; reference: string; at: Date }[] = [];
   readonly skipped: { claim: DeliveryClaim; reason: string; at: Date }[] = [];
   readonly failed: { claim: DeliveryClaim; error: string; at: Date; nextAttemptAt: Date }[] = [];
@@ -35,21 +37,25 @@ class RecordingLog implements BriefDeliveryLogPort {
     private readonly briefs: readonly DailyBriefClaim[] = [],
     private readonly prompts: readonly ReactionPromptClaim[] = [],
     private readonly failingRecord: string | null = null,
+    private readonly alerts: readonly StockAlertClaim[] = [],
   ) {}
 
   async claimDueDailyBriefs(due: DeliveryDue): Promise<DailyBriefClaim[]> {
     this.due.push(due);
+    this.claims.push('claimDueDailyBriefs');
     return [...this.briefs];
   }
 
   async claimDueReactionPrompts(due: DeliveryDue): Promise<ReactionPromptClaim[]> {
     this.due.push(due);
+    this.claims.push('claimDueReactionPrompts');
     return [...this.prompts];
   }
 
   async claimDueStockAlerts(due: DeliveryDue): Promise<StockAlertClaim[]> {
     this.due.push(due);
-    return [];
+    this.claims.push('claimDueStockAlerts');
+    return [...this.alerts];
   }
 
   async recordSent(claim: DeliveryClaim, reference: string, at: Date): Promise<void> {
@@ -73,6 +79,7 @@ class RecordingLog implements BriefDeliveryLogPort {
 class RecordingDelivery implements BriefDeliveryPort {
   readonly briefs: { householdId: string; brief: DailyBrief }[] = [];
   readonly prompts: { householdId: string; prompt: ReactionPrompt }[] = [];
+  readonly alerts: { householdId: string; message: StockAlertMessage }[] = [];
 
   constructor(private readonly answers: ReadonlyMap<string, DeliveryResult | unknown> = new Map()) {}
 
@@ -83,6 +90,11 @@ class RecordingDelivery implements BriefDeliveryPort {
 
   async deliverReactionPrompt(householdId: string, prompt: ReactionPrompt): Promise<DeliveryResult> {
     this.prompts.push({ householdId, prompt });
+    return this.answer(householdId);
+  }
+
+  async deliverStockAlert(householdId: string, message: StockAlertMessage): Promise<DeliveryResult> {
+    this.alerts.push({ householdId, message });
     return this.answer(householdId);
   }
 
@@ -152,12 +164,33 @@ function briefOf(slots: readonly BriefSlot[] = [], newIngredients: readonly Brie
   };
 }
 
+function withStockAlert(brief: DailyBrief, items: readonly BriefStockAlertItem[]): DailyBrief {
+  return { ...brief, stockAlert: { ...brief.stockAlert, items } };
+}
+
+function alertItem(name: string): BriefStockAlertItem {
+  return {
+    ingredientId: `${name}-id`,
+    name,
+    total: 1,
+    thresholdCubes: null,
+    firstShortageDate: localDate('2026-09-24'),
+    daysUntilShortage: 1,
+    horizonShortfallCubes: 2,
+    urgency: 'urgent',
+  };
+}
+
 function briefClaim(householdId: string, attempts = 1): DailyBriefClaim {
   return { kind: 'brief', householdId, date: DATE, attempts };
 }
 
 function promptClaim(householdId: string, slot: MealSlot = 'morning', attempts = 1): ReactionPromptClaim {
   return { kind: 'reaction_prompt', householdId, date: DATE, slot, attempts };
+}
+
+function alertClaim(householdId: string, attempts = 1): StockAlertClaim {
+  return { kind: 'stock_alert', householdId, date: DATE, attempts };
 }
 
 describe('브리프 발송 쓸기', () => {
@@ -169,6 +202,13 @@ describe('브리프 발송 쓸기', () => {
     await service.runEveryHousehold();
 
     expect(log.due).toEqual([
+      {
+        date: DATE,
+        time: '07:30',
+        instant: INSTANT,
+        leaseSeconds: CLAIM_LEASE_SECONDS,
+        maxAttempts: MAX_DELIVERY_ATTEMPTS,
+      },
       {
         date: DATE,
         time: '07:30',
@@ -487,5 +527,126 @@ describe('후속 메시지의 세 갈래', () => {
       { kind: 'sent', target: 'brief', householdId: '재하네' },
       { kind: 'deferred', target: 'reaction_prompt', householdId: '민준네' },
     ]);
+  });
+});
+
+describe('재고 알람', () => {
+  it('알람 항목이 없으면 no_alert로 종결하고 보내지 않는다', async () => {
+    // 되돌리면 자정까지 매분 클레임과 브리프 조립이 반복된다. 낮에 재고가 줄면 다음 날 아침에 간다.
+    const log = new RecordingLog([], [], null, [alertClaim('재하네')]);
+    const delivery = new RecordingDelivery();
+    const service = new BriefDispatchService(
+      log,
+      delivery,
+      briefService(new Map([['재하네', briefOf()]])),
+      clockAt('07:30'),
+    );
+
+    const outcomes = await service.runEveryHousehold();
+
+    expect(log.skipped).toEqual([{ claim: alertClaim('재하네'), reason: 'no_alert', at: INSTANT }]);
+    expect(log.released).toEqual([]);
+    expect(delivery.alerts).toEqual([]);
+    expect(outcomes).toEqual([{ kind: 'skipped', target: 'stock_alert', householdId: '재하네', reason: 'no_alert' }]);
+  });
+
+  it('알람 항목이 있으면 그날 날짜와 항목을 실어 보내고 참조로 기록한다', async () => {
+    const log = new RecordingLog([], [], null, [alertClaim('재하네')]);
+    const delivery = new RecordingDelivery(new Map([['재하네', { kind: 'sent', reference: 'ts-alert' }]]));
+    const brief = withStockAlert(briefOf(), [alertItem('소고기')]);
+    const service = new BriefDispatchService(
+      log,
+      delivery,
+      briefService(new Map([['재하네', brief]])),
+      clockAt('07:30'),
+    );
+
+    const outcomes = await service.runEveryHousehold();
+
+    expect(delivery.alerts).toEqual([
+      { householdId: '재하네', message: { date: DATE, alert: { horizonDays: 7, items: [alertItem('소고기')] } } },
+    ]);
+    expect(log.sent).toEqual([{ claim: alertClaim('재하네'), reference: 'ts-alert', at: INSTANT }]);
+    expect(outcomes).toEqual([{ kind: 'sent', target: 'stock_alert', householdId: '재하네' }]);
+  });
+
+  it('재고 알람을 보낼 곳이 없으면 그날은 종결이다', async () => {
+    const log = new RecordingLog([], [], null, [alertClaim('재하네')]);
+    const delivery = new RecordingDelivery(new Map([['재하네', { kind: 'skipped', reason: 'no_channel' }]]));
+    const service = new BriefDispatchService(
+      log,
+      delivery,
+      briefService(new Map([['재하네', withStockAlert(briefOf(), [alertItem('소고기')])]])),
+      clockAt('07:30'),
+    );
+
+    const outcomes = await service.runEveryHousehold();
+
+    expect(log.skipped).toEqual([{ claim: alertClaim('재하네'), reason: 'no_channel', at: INSTANT }]);
+    expect(log.failed).toEqual([]);
+    expect(outcomes).toEqual([{ kind: 'skipped', target: 'stock_alert', householdId: '재하네', reason: 'no_channel' }]);
+  });
+
+  it('재고 알람 발송이 던지면 정책이 정한 다음 시각으로 실패를 기록한다', async () => {
+    const log = new RecordingLog([], [], null, [alertClaim('재하네', 2)]);
+    const delivery = new RecordingDelivery(new Map([['재하네', new Error('발송 대상이 응답하지 않습니다')]]));
+    const service = new BriefDispatchService(
+      log,
+      delivery,
+      briefService(new Map([['재하네', withStockAlert(briefOf(), [alertItem('소고기')])]])),
+      clockAt('07:30'),
+    );
+
+    const outcomes = await service.runEveryHousehold();
+
+    expect(log.failed).toEqual([
+      {
+        claim: alertClaim('재하네', 2),
+        error: '발송 대상이 응답하지 않습니다',
+        at: INSTANT,
+        nextAttemptAt: nextAttemptAt(2, INSTANT),
+      },
+    ]);
+    expect(outcomes[0]).toMatchObject({ kind: 'failed', target: 'stock_alert', householdId: '재하네' });
+  });
+
+  it('재고 알람의 브리프를 만들지 못한 것도 실패로 기록한다', async () => {
+    const log = new RecordingLog([], [], null, [alertClaim('재하네')]);
+    const delivery = new RecordingDelivery();
+    const service = new BriefDispatchService(
+      log,
+      delivery,
+      briefService(new Map([['재하네', new Error('상태를 읽지 못했습니다')]])),
+      clockAt('07:30'),
+    );
+
+    const outcomes = await service.runEveryHousehold();
+
+    expect(log.failed.map((record) => record.error)).toEqual(['상태를 읽지 못했습니다']);
+    expect(delivery.alerts).toEqual([]);
+    expect(outcomes[0]).toMatchObject({ kind: 'failed', target: 'stock_alert' });
+  });
+
+  it('한 쓸기에서 브리프, 후속, 알람 순으로 처리한다', async () => {
+    // 클레임은 try 밖이다. 마이그레이션 전 서버에서 알람 클레임이 던져도 앞의 둘은 이미 끝나 있다.
+    const log = new RecordingLog([briefClaim('재하네')], [promptClaim('민준네')], null, [alertClaim('서윤네')]);
+    const delivery = new RecordingDelivery();
+    const service = new BriefDispatchService(
+      log,
+      delivery,
+      briefService(
+        new Map([
+          ['재하네', briefOf()],
+          ['민준네', briefOf([slotOf('morning', fedMeal(false))])],
+          ['서윤네', withStockAlert(briefOf(), [alertItem('소고기')])],
+        ]),
+      ),
+      clockAt('11:30'),
+    );
+
+    const outcomes = await service.runEveryHousehold();
+
+    expect(outcomes.map((outcome) => outcome.target)).toEqual(['brief', 'reaction_prompt', 'stock_alert']);
+    expect(log.claims).toEqual(['claimDueDailyBriefs', 'claimDueReactionPrompts', 'claimDueStockAlerts']);
   });
 });
