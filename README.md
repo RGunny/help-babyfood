@@ -18,6 +18,7 @@
 | `docs/adr/0007-slack-message-templates.md` | 코드 템플릿, 재고 표, 보낸 메시지 스냅숏 |
 | `docs/adr/0008-slack-canvas-board.md` | 채널 캔버스 상태판, `state_changed_at` 갱신 판정, 회차 투영 |
 | `docs/adr/0009-pantry-ingredients-and-expiry-notice.md` | 상비 재료, 재고 표의 임계일 열과 3일 전 강조 |
+| `docs/adr/0010-stock-alert-message.md` | 브리프와 별도인 재고 알람 메시지, 부족 시작일 순 재고 표 |
 
 규칙을 알고 싶으면 기획안 4장을 읽는다. 왜 그렇게 만들었는지는 ADR에 있다.
 
@@ -108,6 +109,6 @@ pnpm slack-link --list                                                   # 연�
 
 6단계까지 끝났다(기획안 9장). Claude Code에서 재고와 식단을 관리할 수 있고, 서버가 매분 정합화를 돌려 식단시간이 지난 끼니를 자동으로 차감한다. 같은 tick에서 설정한 시각이 지난 가정의 브리프를 Slack 채널로 보내고, 실패하면 재시도한다. 부모는 브리프와 후속 메시지의 버튼으로 미급여, 반응, 폐기를 응답할 수 있다. 채널 탭의 캔버스에는 상태판이 있다. 엑셀 식단표 양식의 식단 달력(월~일 한 주가 표 하나, 첫 도입 재료의 회차 표시)과 재고 표, 임계일, 확인 필요를 담고, 상태가 바뀐 뒤 1~2분 안에 서버가 다시 쓴다(ADR 0008). 배포 설정도 저장소에 있다.
 
-2026-09-26부터 운영 중이다. 서버는 Railway의 `help-babyfood-production.up.railway.app`에 떠 있고, 식단과 재고를 이관했으며, 매일 07:30 브리프가 `#help-babyfood` 채널로 간다. 브리프의 재고는 표 한 장으로 보이고, 보낸 메시지는 `slack_message`에 남는다(ADR 0007). 양식을 미리 보려면 운영 컨테이너에서 `railway ssh "node dist/scripts/preview-slack.js --household 재하네"`를 돌린다. 상태판은 `--template household_board --dry-run`이 마크다운을 출력한다. 로컬의 `pnpm slack-preview`는 로컬 DB를 읽는다.
+2026-09-26부터 운영 중이다. 서버는 Railway의 `help-babyfood-production.up.railway.app`에 떠 있고, 식단과 재고를 이관했으며, 매일 07:30 브리프가 `#help-babyfood` 채널로 간다. 브리프의 재고는 표 한 장으로 보이고, 보낸 메시지는 `slack_message`에 남는다(ADR 0007). 양식을 미리 보려면 운영 컨테이너에서 `railway ssh "node dist/scripts/preview-slack.js --household 재하네"`를 돌린다. `--template stock_alert`는 재고 알람(ADR 0010)을 보내고, 상태판은 `--template household_board --dry-run`이 마크다운을 출력한다. 로컬의 `pnpm slack-preview`는 로컬 DB를 읽는다.
 
 아직 남은 것은 `docs/user-intervention.md`의 표에 있다. 버튼 응답은 Slack 사용자 id를 연결한 구성원만 기록된다. 지금은 아빠만 연결되어 있고, 연결되지 않은 사람이 누르면 "등록되지 않은 Slack 사용자입니다"만 돌아온다(7번). PITR은 Railway Pro 플랜에서만 되어 보류 중이다.
