@@ -67,12 +67,14 @@ const BRIEF: DailyBrief = {
   slots: [],
   newIngredients: [],
   stock: [
-    { ingredientId: id(1), name: '쌀', total: 5, fresh: 5, overdue: 0, weightMismatched: 0, depletionDate: localDate('2026-10-01'), firstShortageDate: null, nextExpiry: { date: localDate('2026-10-06'), stage: { kind: 'fresh' } } },
+    { ingredientId: id(1), name: '쌀', total: 5, fresh: 5, overdue: 0, weightMismatched: 0, depletionDate: localDate('2026-10-01'), firstShortageDate: localDate('2026-10-02'), nextExpiry: { date: localDate('2026-10-06'), stage: { kind: 'fresh' } } },
     { ingredientId: id(2), name: '오트밀', total: 13, fresh: 13, overdue: 0, weightMismatched: 0, depletionDate: null, firstShortageDate: null, nextExpiry: { date: localDate('2026-09-28'), stage: { kind: 'due_soon', daysLeft: 2 } } },
     { ingredientId: id(3), name: '소고기', total: 16, fresh: 16, overdue: 0, weightMismatched: 0, depletionDate: localDate('2026-10-12'), firstShortageDate: null, nextExpiry: { date: localDate('2026-10-08'), stage: { kind: 'fresh' } } },
-    { ingredientId: id(4), name: '브로콜리', total: 3, fresh: 0, overdue: 3, weightMismatched: 0, depletionDate: localDate('2026-09-30'), firstShortageDate: null, nextExpiry: { date: localDate('2026-09-18'), stage: { kind: 'overdue', overdueDays: 8 } } },
-    { ingredientId: id(5), name: '당근', total: 0, fresh: 0, overdue: 0, weightMismatched: 0, depletionDate: null, firstShortageDate: null, nextExpiry: null },
+    { ingredientId: id(4), name: '브로콜리', total: 3, fresh: 0, overdue: 3, weightMismatched: 0, depletionDate: localDate('2026-09-30'), firstShortageDate: localDate('2026-10-01'), nextExpiry: { date: localDate('2026-09-18'), stage: { kind: 'overdue', overdueDays: 8 } } },
+    // 재고가 0이어도 식단에 있으면 첫 끼니가 부족 시작일이라 표 맨 위에 온다(ADR 0010).
+    { ingredientId: id(5), name: '당근', total: 0, fresh: 0, overdue: 0, weightMismatched: 0, depletionDate: null, firstShortageDate: localDate('2026-09-28'), nextExpiry: null },
     { ingredientId: id(6), name: '오이', total: 0, fresh: 0, overdue: 0, weightMismatched: 0, depletionDate: null, firstShortageDate: null, nextExpiry: null },
+    { ingredientId: id(10), name: '애호박', total: 0, fresh: 0, overdue: 0, weightMismatched: 0, depletionDate: null, firstShortageDate: null, nextExpiry: null },
   ],
   pantryIngredients: [{ ingredientId: id(8), name: '계란' }],
   shortages: [],
@@ -114,7 +116,7 @@ describe('상태판 캔버스', () => {
   it('세 주의 달력과 재고, 확인 필요를 마크다운으로 낸다', async () => {
     const markdown = householdBoardTemplate.render(board());
 
-    await expect(markdown).toMatchFileSnapshot('./__snapshots__/household-board.v4.md');
+    await expect(markdown).toMatchFileSnapshot(`./__snapshots__/household-board.v${householdBoardTemplate.version}.md`);
   });
 
   it('오늘 열의 머리만 굵고 ▶가 붙는다', () => {
@@ -147,10 +149,16 @@ describe('상태판 캔버스', () => {
 
   it('재고가 없으면 표 대신 한 줄이고, 재고 0인 재료는 아래 한 줄로 적힌다', () => {
     const markdown = householdBoardTemplate.render(
-      board({ brief: { ...BRIEF, stock: BRIEF.stock.filter((row) => row.total === 0), thresholdAlerts: [] } }),
+      board({
+        brief: {
+          ...BRIEF,
+          stock: BRIEF.stock.filter((row) => row.total === 0 && row.firstShortageDate === null),
+          thresholdAlerts: [],
+        },
+      }),
     );
 
-    expect(markdown).toContain('## 재고\n재고가 없습니다.\n_재고 0: 당근, 오이_\n_상비: 계란_');
+    expect(markdown).toContain('## 재고\n재고가 없습니다.\n_재고 0: 오이, 애호박_\n_상비: 계란_');
   });
 
   it('재고 표는 300셀 안에서 자르고 뺀 수를 적는다', () => {
@@ -196,8 +204,8 @@ describe('상태판 캔버스', () => {
     const markdown = householdBoardTemplate.render(board());
 
     expect(markdown).toContain('| **⏰ 오트밀** | 13 | 13 | 0 | 09-28 | – | – |');
-    expect(markdown).toContain('| **⏰ 브로콜리** | 3 | 0 | 3 | 09-18 | 09-30 | – |');
-    expect(markdown).toContain('| 쌀 | 5 | 5 | 0 | 10-06 | 10-01 | – |');
+    expect(markdown).toContain('| **⏰ 브로콜리** | 3 | 0 | 3 | 09-18 | 10-01 | – |');
+    expect(markdown).toContain('| 쌀 | 5 | 5 | 0 | 10-06 | 10-02 | – |');
   });
 
   it('상비 재료는 표 아래 한 줄이다', () => {
@@ -205,7 +213,32 @@ describe('상태판 캔버스', () => {
       board({ brief: { ...BRIEF, pantryIngredients: [{ ingredientId: id(8), name: '땅콩버터' }, { ingredientId: id(9), name: '계란' }] } }),
     );
 
-    expect(markdown).toContain('_재고 0: 당근_\n_상비: 땅콩버터, 계란_\n\n## 확인 필요');
+    expect(markdown).toContain('_재고 0: 애호박_\n_상비: 땅콩버터, 계란_\n\n## 확인 필요');
+  });
+
+  it('재고 표는 부족 시작일이 이른 순이고 여섯째 칸이 부족 시작일이다', () => {
+    const markdown = householdBoardTemplate.render(board());
+
+    const rows = markdown
+      .split('\n')
+      .slice(markdown.split('\n').indexOf('## 재고') + 3)
+      .filter((line) => line.startsWith('| '))
+      .map((line) => line.split(' | ').map((cell) => cell.replace(/^\| |\s\|$/g, '')));
+    expect(rows.map((cells) => [cells[0], cells[5]])).toEqual([
+      ['당근', '09-28'],
+      ['**⏰ 브로콜리**', '10-01'],
+      ['쌀', '10-02'],
+      ['오이', '–'],
+      ['**⏰ 오트밀**', '–'],
+      ['소고기', '–'],
+    ]);
+  });
+
+  it('재고가 0이어도 식단에 있는 재료는 표에 남는다', () => {
+    const markdown = householdBoardTemplate.render(board());
+
+    expect(markdown).toContain('| 당근 | 0 | 0 | 0 | – | 09-28 | – |');
+    expect(markdown).not.toContain('_재고 0: 당근');
   });
 
   it('임계일 구역이 없다', () => {

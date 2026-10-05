@@ -32,9 +32,9 @@ const STOCK_COLUMNS: readonly TableColumn<IngredientRow>[] = [
     cell: (row) => (row.nextExpiry === null ? null : shortDate(row.nextExpiry.date)),
   },
   {
-    header: '소진 예상',
+    header: '부족 시작',
     align: 'center',
-    cell: (row) => (row.depletionDate === null ? null : shortDate(row.depletionDate)),
+    cell: (row) => (row.firstShortageDate === null ? null : shortDate(row.firstShortageDate)),
   },
   { header: '임계', align: 'right', cell: (row) => row.thresholdCubes },
 ];
@@ -44,12 +44,12 @@ const STOCK_COLUMNS: readonly TableColumn<IngredientRow>[] = [
  *
  * Every part of the brief is one function returning its blocks, joined in reading order. Adding a
  * part is one more line in the list. Stock, expiry and threshold are one table keyed by
- * ingredient, with the discard buttons right under it; the shortage forecast is left to MCP, since the depletion date already says when an ingredient
- * runs out (ADR 0007).
+ * ingredient, with the discard buttons right under it. The table shows the first shortage date;
+ * how many cubes the next days lack is carried by the stock alert message (ADR 0010).
  */
 export const dailyBriefTemplate: MessageTemplate<DailyBrief> = {
   key: 'daily_brief',
-  version: 4,
+  version: 5,
   render(brief) {
     const dayPart = brief.dayNumber === null ? '' : ` · ${brief.dayNumber}일차`;
     const title = `${brief.date} 이유식 브리프${dayPart}`;

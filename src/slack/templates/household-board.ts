@@ -6,7 +6,7 @@ import { CanvasTemplate } from './canvas-template.js';
 import { shortDate } from './labels.js';
 import { MAX_TABLE_CELLS, escapeMarkdown, heading, markdownList, markdownTable } from './markdown.js';
 
-const STOCK_HEADER = ['재료', '합계', '가용', '임계 지남', '임계일', '소진 예상', '임계'];
+const STOCK_HEADER = ['재료', '합계', '가용', '임계 지남', '임계일', '부족 시작', '임계'];
 /** Rows the stock table can hold under the cell limit, header included. */
 const MAX_STOCK_ROWS = Math.floor(MAX_TABLE_CELLS / STOCK_HEADER.length) - 1;
 
@@ -20,7 +20,7 @@ const MAX_STOCK_ROWS = Math.floor(MAX_TABLE_CELLS / STOCK_HEADER.length) - 1;
  */
 export const householdBoardTemplate: CanvasTemplate<HouseholdBoard> = {
   key: 'household_board',
-  version: 4,
+  version: 5,
   render(board) {
     const parts = [
       titleLines(board),
@@ -90,7 +90,7 @@ function stockRow(row: IngredientRow): string[] {
     String(row.fresh),
     String(row.overdue),
     row.nextExpiry === null ? '–' : shortDate(row.nextExpiry.date),
-    row.depletionDate === null ? '–' : shortDate(row.depletionDate),
+    row.firstShortageDate === null ? '–' : shortDate(row.firstShortageDate),
     row.thresholdCubes === null ? '–' : String(row.thresholdCubes),
   ];
 }

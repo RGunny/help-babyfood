@@ -1,10 +1,12 @@
 import { IncomingHttpHeaders, Server, createServer } from 'node:http';
 import { AddressInfo } from 'node:net';
 import { DailyBrief } from '../../src/application/daily-brief.js';
+import { StockAlertMessage } from '../../src/application/ports/brief-delivery.port.js';
 import { localDate } from '../../src/domain/shared/local-date.js';
 import { SlackBriefDelivery } from '../../src/slack/outbound/slack-brief-delivery.js';
 import { PrismaSlackMessageLog, SlackMessageLog } from '../../src/slack/outbound/slack-message-log.js';
 import { dailyBriefTemplate } from '../../src/slack/templates/daily-brief.js';
+import { stockAlertTemplate } from '../../src/slack/templates/stock-alert.js';
 import { TestServices, at, buildServices, seedHouseholdOnly } from './setup/fixtures.js';
 
 // 발송 어댑터가 Slack Web API의 응답을 어떻게 판정하는지 본다. 가짜 서버가 chat.postMessage를
@@ -102,6 +104,25 @@ const BRIEF: DailyBrief = {
   },
 };
 
+const STOCK_ALERT: StockAlertMessage = {
+  date: localDate(TODAY),
+  alert: {
+    horizonDays: 7,
+    items: [
+      {
+        ingredientId: '3f1c2a4e-7b8d-4c9e-a1f2-0123456789ac',
+        name: '소고기',
+        total: 1,
+        thresholdCubes: 4,
+        firstShortageDate: localDate('2026-09-23'),
+        daysUntilShortage: 1,
+        horizonShortfallCubes: 6,
+        urgency: 'urgent',
+      },
+    ],
+  },
+};
+
 describe('Slack 발송', () => {
   it('채널이 연결된 가정의 브리프는 봇 토큰과 채널 id를 실어 chat.postMessage로 간다', async () => {
     const householdId = await household(CHANNEL_ID);
@@ -139,6 +160,18 @@ describe('Slack 발송', () => {
 
     expect(result).toEqual({ kind: 'sent', reference: ts });
     expect(received[0].body.text).toBe('2026-09-22 오전 새 재료 반응 기록');
+  });
+
+  it('재고 알람도 같은 경로로 chat.postMessage에 간다', async () => {
+    const householdId = await household(CHANNEL_ID);
+
+    const result = await delivery().deliverStockAlert(householdId, STOCK_ALERT);
+
+    expect(result).toEqual({ kind: 'sent', reference: ts });
+    expect(received).toHaveLength(1);
+    expect(received[0].url).toBe('/api/chat.postMessage');
+    expect(received[0].body.channel).toBe(CHANNEL_ID);
+    expect(received[0].body.text).toBe('재고 알람: 소고기 내일부터 부족');
   });
 
   it('HTTP 200에 {"ok": false, "error": "channel_not_found"}가 오면 성공이 아니라 던진다', async () => {
@@ -192,6 +225,20 @@ describe('Slack 발송', () => {
 
     const row = await services.prisma.slackMessage.findFirstOrThrow({ where: { householdId } });
     expect(row).toMatchObject({ templateKey: 'reaction_prompt', templateVersion: 1, messageTs: ts });
+  });
+
+  it('재고 알람은 stock_alert로 남는다', async () => {
+    const householdId = await household(CHANNEL_ID);
+
+    await delivery().deliverStockAlert(householdId, STOCK_ALERT);
+
+    const row = await services.prisma.slackMessage.findFirstOrThrow({ where: { householdId } });
+    expect(row).toMatchObject({
+      templateKey: 'stock_alert',
+      templateVersion: stockAlertTemplate.version,
+      messageTs: ts,
+    });
+    expect(row.payload).toEqual({ text: received[0].body.text, blocks: received[0].body.blocks });
   });
 
   it('스냅숏을 남기지 못해도 발송은 sent다. 던지면 이미 간 브리프가 재시도로 한 번 더 간다', async () => {

@@ -81,11 +81,41 @@
           },
           {
             "type": "raw_text",
-            "text": "소진 예상"
+            "text": "부족 시작"
           },
           {
             "type": "raw_text",
             "text": "임계"
+          }
+        ],
+        [
+          {
+            "type": "raw_text",
+            "text": "당근"
+          },
+          {
+            "type": "raw_text",
+            "text": "0"
+          },
+          {
+            "type": "raw_text",
+            "text": "0"
+          },
+          {
+            "type": "raw_text",
+            "text": "0"
+          },
+          {
+            "type": "raw_text",
+            "text": "–"
+          },
+          {
+            "type": "raw_text",
+            "text": "09-27"
+          },
+          {
+            "type": "raw_text",
+            "text": "–"
           }
         ],
         [
@@ -111,7 +141,7 @@
           },
           {
             "type": "raw_text",
-            "text": "09-28"
+            "text": "09-29"
           },
           {
             "type": "raw_text",
@@ -141,7 +171,7 @@
           },
           {
             "type": "raw_text",
-            "text": "09-30"
+            "text": "10-01"
           },
           {
             "type": "raw_text",
@@ -171,7 +201,7 @@
           },
           {
             "type": "raw_text",
-            "text": "10-01"
+            "text": "10-02"
           },
           {
             "type": "raw_text",
@@ -275,7 +305,7 @@
       "elements": [
         {
           "type": "mrkdwn",
-          "text": "재고 0: 당근\n상비: 계란"
+          "text": "재고 0: 청경채\n상비: 계란"
         }
       ]
     },

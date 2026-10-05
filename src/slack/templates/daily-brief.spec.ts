@@ -294,7 +294,7 @@ describe('브리프 렌더링', () => {
       );
 
       expect(tableRows(blocks)).toEqual([
-        ['재료', '합계', '가용', '임계 지남', '임계일', '소진 예상', '임계'],
+        ['재료', '합계', '가용', '임계 지남', '임계일', '부족 시작', '임계'],
         ['소고기', '12', '10', '2', '–', '–', '–'],
       ]);
     });
@@ -305,8 +305,8 @@ describe('브리프 렌더링', () => {
       expect(stockTable(blocks)!.rows[1][1]).toEqual({ type: 'raw_text', text: '12' });
     });
 
-    it('소진 예상일은 MM-DD로 줄이고 임계개수에 닿은 재료는 임계 칸에 그 개수를 적는다', () => {
-      const cucumber = stockRow('오이', { total: 1, fresh: 1, depletionDate: localDate('2026-09-28') });
+    it('부족 시작일은 MM-DD로 줄이고 임계개수에 닿은 재료는 임계 칸에 그 개수를 적는다', () => {
+      const cucumber = stockRow('오이', { total: 1, fresh: 1, firstShortageDate: localDate('2026-09-28') });
       const { blocks } = renderBrief(
         brief({
           stock: [cucumber],
@@ -317,7 +317,9 @@ describe('브리프 렌더링', () => {
       expect(tableRows(blocks)[1]).toEqual(['오이', '1', '1', '0', '–', '09-28', '3']);
     });
 
-    it('소진 예상일이 빠른 재료, 임계개수에 닿은 재료, 임계일이 임박하거나 지난 재료, 나머지 순이다', () => {
+    // 부족 시작일 다음은 임계개수에 닿은 재료, 임계일이 임박하거나 지난 재료, 나머지 순이다.
+    // 소진 예상일만 있는 행은 부족 시작일이 없으므로 앞으로 오지 않는다(ADR 0010).
+    it('재고 표는 부족 시작일이 이른 순이다', () => {
       const threshold = stockRow('임계');
       const { blocks } = renderBrief(
         brief({
@@ -327,8 +329,9 @@ describe('브리프 렌더링', () => {
               nextExpiry: { date: localDate('2026-09-24'), stage: { kind: 'due_soon', daysLeft: 2 } },
             }),
             threshold,
-            stockRow('늦게 소진', { depletionDate: localDate('2026-10-05') }),
-            stockRow('먼저 소진', { depletionDate: localDate('2026-09-25') }),
+            stockRow('늦게 부족', { depletionDate: localDate('2026-10-04'), firstShortageDate: localDate('2026-10-05') }),
+            stockRow('먼저 부족', { depletionDate: localDate('2026-09-24'), firstShortageDate: localDate('2026-09-25') }),
+            stockRow('소진만', { depletionDate: localDate('2026-09-23') }),
           ],
           thresholdAlerts: [{ ingredientId: threshold.ingredientId, name: '임계', total: 5, thresholdCubes: 6 }],
         }),
@@ -336,11 +339,12 @@ describe('브리프 렌더링', () => {
 
       expect(tableRows(blocks).map(([name]) => name)).toEqual([
         '재료',
-        '먼저 소진',
-        '늦게 소진',
+        '먼저 부족',
+        '늦게 부족',
         '임계',
         '⏰ 임박',
         '나머지',
+        '소진만',
       ]);
     });
 
@@ -370,8 +374,42 @@ describe('브리프 렌더링', () => {
       expect(contextText(blocks)).toBe('재고 0: 오이');
     });
 
-    it('부족 예측은 브리프에 싣지 않는다. 소진 예상 칸이 대신하고 수량은 MCP가 답한다', () => {
-      const row = stockRow('소고기');
+    it('재고가 0이어도 식단에 있는 재료는 표에 남는다', () => {
+      const { blocks } = renderBrief(
+        brief({
+          stock: [
+            stockRow('쌀'),
+            stockRow('당근', { total: 0, fresh: 0, firstShortageDate: localDate('2026-09-23') }),
+          ],
+        }),
+      );
+
+      expect(tableRows(blocks).slice(1)).toEqual([
+        ['당근', '0', '0', '0', '–', '09-23', '–'],
+        ['쌀', '5', '5', '0', '–', '–', '–'],
+      ]);
+      expect(contextText(blocks)).toBe('');
+    });
+
+    it('재고도 식단도 임계개수도 없는 재료만 재고 0 줄로 간다', () => {
+      const egg = stockRow('계란', { total: 0, fresh: 0 });
+      const { blocks } = renderBrief(
+        brief({
+          stock: [
+            stockRow('오이', { total: 0, fresh: 0 }),
+            stockRow('당근', { total: 0, fresh: 0, firstShortageDate: localDate('2026-09-24') }),
+            egg,
+          ],
+          thresholdAlerts: [{ ingredientId: egg.ingredientId, name: '계란', total: 0, thresholdCubes: 2 }],
+        }),
+      );
+
+      expect(tableRows(blocks).map(([name]) => name)).toEqual(['재료', '당근', '계란']);
+      expect(contextText(blocks)).toBe('재고 0: 오이');
+    });
+
+    it('부족 수량은 브리프에 싣지 않는다. 부족 시작 칸이 날짜를 보이고 수량은 재고 알람이 싣는다', () => {
+      const row = stockRow('소고기', { firstShortageDate: localDate('2026-09-30') });
       const { blocks } = renderBrief(
         brief({
           stock: [row],
@@ -387,7 +425,11 @@ describe('브리프 렌더링', () => {
         }),
       );
 
-      expect(JSON.stringify(blocks)).not.toContain('부족');
+      const payload = JSON.stringify(blocks);
+      expect(tableRows(blocks)[1][5]).toBe('09-30');
+      expect(payload).not.toContain('부족 예측');
+      expect(payload).not.toContain('8개');
+      expect(payload).not.toContain('20개');
     });
   });
 
@@ -532,7 +574,7 @@ describe('브리프 렌더링', () => {
   });
 });
 
-describe('브리프 v4 페이로드', () => {
+describe(`브리프 v${dailyBriefTemplate.version} 페이로드`, () => {
   // 레이아웃이 바뀌면 이 파일이 바뀐다. 그때 dailyBriefTemplate.version도 올렸는지 본다(ADR 0007).
   it('2026-09-26 운영 브리프와 같은 모양의 입력이 고정된 페이로드를 낸다', async () => {
     const id = (n: number) => `0199a1b2-c3d4-7e5f-8a9b-${String(n).padStart(12, '0')}`;
@@ -543,6 +585,7 @@ describe('브리프 v4 페이로드', () => {
       fresh: number,
       overdue: number,
       depletion: string | null,
+      shortage: string | null,
       nextExpiry: BriefStockRow['nextExpiry'] = null,
     ) => ({
       ingredientId: id(n),
@@ -552,7 +595,7 @@ describe('브리프 v4 페이로드', () => {
       overdue,
       weightMismatched: 0,
       depletionDate: depletion === null ? null : localDate(depletion),
-      firstShortageDate: null,
+      firstShortageDate: shortage === null ? null : localDate(shortage),
       nextExpiry,
     });
     const discard = (
@@ -595,12 +638,14 @@ describe('브리프 v4 페이로드', () => {
           { ingredientId: id(2), name: '오트밀', slot: 'morning', exposureNumber: 1 },
         ],
         stock: [
-          row(1, '쌀', 5, 5, 0, '2026-10-01', { date: localDate('2026-10-08'), stage: { kind: 'fresh' } }),
-          row(2, '오트밀', 15, 15, 0, null, { date: localDate('2026-09-28'), stage: { kind: 'due_soon', daysLeft: 2 } }),
-          row(3, '소고기', 2, 0, 2, '2026-09-28', { date: localDate('2026-09-16'), stage: { kind: 'overdue', overdueDays: 10 } }),
-          row(4, '브로콜리', 3, 0, 3, '2026-09-30', { date: localDate('2026-09-18'), stage: { kind: 'overdue', overdueDays: 8 } }),
-          row(5, '당근', 0, 0, 0, null),
-          row(6, '오이', 0, 0, 0, null),
+          row(1, '쌀', 5, 5, 0, '2026-10-01', '2026-10-02', { date: localDate('2026-10-08'), stage: { kind: 'fresh' } }),
+          row(2, '오트밀', 15, 15, 0, null, null, { date: localDate('2026-09-28'), stage: { kind: 'due_soon', daysLeft: 2 } }),
+          row(3, '소고기', 2, 0, 2, '2026-09-28', '2026-09-29', { date: localDate('2026-09-16'), stage: { kind: 'overdue', overdueDays: 10 } }),
+          row(4, '브로콜리', 3, 0, 3, '2026-09-30', '2026-10-01', { date: localDate('2026-09-18'), stage: { kind: 'overdue', overdueDays: 8 } }),
+          // 재고가 0인데 식단에 있는 재료는 부족 시작일이 가장 이르므로 표 맨 위에 온다.
+          row(5, '당근', 0, 0, 0, null, '2026-09-27'),
+          row(6, '오이', 0, 0, 0, null, null),
+          row(8, '청경채', 0, 0, 0, null, null),
         ],
         pantryIngredients: [{ ingredientId: id(7), name: '계란' }],
         thresholdAlerts: [{ ingredientId: id(6), name: '오이', total: 0, thresholdCubes: 2 }],
@@ -611,6 +656,8 @@ describe('브리프 v4 페이로드', () => {
       }),
     );
 
-    await expect(`${JSON.stringify(message, null, 2)}\n`).toMatchFileSnapshot('./__snapshots__/daily-brief.v4.json');
+    await expect(`${JSON.stringify(message, null, 2)}\n`).toMatchFileSnapshot(
+      `./__snapshots__/daily-brief.v${dailyBriefTemplate.version}.json`,
+    );
   });
 });

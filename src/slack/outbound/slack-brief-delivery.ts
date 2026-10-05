@@ -1,12 +1,18 @@
 import { Logger } from '@nestjs/common';
 import { DailyBrief } from '../../application/daily-brief.js';
-import { BriefDeliveryPort, DeliveryResult, ReactionPrompt } from '../../application/ports/brief-delivery.port.js';
+import {
+  BriefDeliveryPort,
+  DeliveryResult,
+  ReactionPrompt,
+  StockAlertMessage,
+} from '../../application/ports/brief-delivery.port.js';
 import { ClockPort } from '../../application/ports/clock.port.js';
 import { PrismaTransaction } from '../../infrastructure/prisma/prisma.service.js';
 import { SlackMessage } from '../templates/blocks.js';
 import { dailyBriefTemplate } from '../templates/daily-brief.js';
 import { MessageTemplate } from '../templates/message-template.js';
 import { reactionPromptTemplate } from '../templates/reaction-prompt.js';
+import { stockAlertTemplate } from '../templates/stock-alert.js';
 import { SLACK_API_BASE_URL, callSlackApi } from './slack-api.js';
 import { SlackMessageLog } from './slack-message-log.js';
 
@@ -21,7 +27,7 @@ interface PostMessageResponse {
 }
 
 /**
- * Posts the brief and the follow-up to the household's channel with `chat.postMessage`, and keeps
+ * Posts the brief, the follow-up and the stock alert to the household's channel with `chat.postMessage`, and keeps
  * what it posted in `slack_message`.
  *
  * The call itself goes through `callSlackApi`, which is where the `ok: false` judgement of ADR
@@ -50,6 +56,10 @@ export class SlackBriefDelivery implements BriefDeliveryPort {
 
   async deliverReactionPrompt(householdId: string, prompt: ReactionPrompt): Promise<DeliveryResult> {
     return await this.post(householdId, reactionPromptTemplate, prompt);
+  }
+
+  async deliverStockAlert(householdId: string, message: StockAlertMessage): Promise<DeliveryResult> {
+    return await this.post(householdId, stockAlertTemplate, message);
   }
 
   private async post<Input>(

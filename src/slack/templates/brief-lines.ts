@@ -17,18 +17,22 @@ export interface IngredientRow extends BriefStockRow {
 export interface StockRows {
   /** Rows to put in the table, most urgent first. */
   readonly shown: readonly IngredientRow[];
-  /** Ingredients with nothing in the freezer and no threshold, named on one line under the table. */
+  /**
+   * Ingredients with nothing in the freezer, no threshold reached and no planned meal going short,
+   * named on one line under the table.
+   */
   readonly empty: readonly IngredientRow[];
 }
 
 /**
- * An ingredient that reached its threshold stays in the table even at zero: that is the one row
- * the threshold column exists for.
+ * An ingredient stays in the table even at zero when it reached its threshold or a planned meal
+ * goes short of it: those are the rows the threshold and shortage columns exist for (ADR 0010).
  */
 export function stockRowsOf(brief: DailyBrief): StockRows {
   const thresholds = new Map(brief.thresholdAlerts.map((alert) => [alert.ingredientId, alert.thresholdCubes]));
   const rows = brief.stock.map((row) => ({ ...row, thresholdCubes: thresholds.get(row.ingredientId) ?? null }));
-  const isEmpty = (row: IngredientRow): boolean => row.total === 0 && row.thresholdCubes === null;
+  const isEmpty = (row: IngredientRow): boolean =>
+    row.total === 0 && row.thresholdCubes === null && row.firstShortageDate === null;
   return {
     shown: rows.filter((row) => !isEmpty(row)).toSorted(byUrgency),
     empty: rows.filter(isEmpty),
@@ -36,14 +40,14 @@ export function stockRowsOf(brief: DailyBrief): StockRows {
 }
 
 /**
- * Soonest to run out first, then those that reached their threshold, then those whose earliest
- * batch is near or past its expiry date. Within a group the order of `brief.stock` is kept.
+ * Earliest first shortage date first, then those that reached their threshold, then those whose
+ * earliest batch is near or past its expiry date. Within a group the order of `brief.stock` is kept.
  */
 export function byUrgency(a: IngredientRow, b: IngredientRow): number {
-  if (a.depletionDate !== b.depletionDate) {
-    if (a.depletionDate === null) return 1;
-    if (b.depletionDate === null) return -1;
-    return a.depletionDate.localeCompare(b.depletionDate);
+  if (a.firstShortageDate !== b.firstShortageDate) {
+    if (a.firstShortageDate === null) return 1;
+    if (b.firstShortageDate === null) return -1;
+    return a.firstShortageDate.localeCompare(b.firstShortageDate);
   }
   const threshold = Number(b.thresholdCubes !== null) - Number(a.thresholdCubes !== null);
   if (threshold !== 0) return threshold;

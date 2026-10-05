@@ -16,6 +16,7 @@ import { dailyBriefTemplate } from '../slack/templates/daily-brief.js';
 import { householdBoardTemplate } from '../slack/templates/household-board.js';
 import { TemplateKey } from '../slack/templates/message-template.js';
 import { reactionPromptTemplate } from '../slack/templates/reaction-prompt.js';
+import { stockAlertTemplate } from '../slack/templates/stock-alert.js';
 
 /**
  * Renders today's messages from the real brief and posts them to a channel, to see a layout before
@@ -38,11 +39,11 @@ import { reactionPromptTemplate } from '../slack/templates/reaction-prompt.js';
 const USAGE = `사용법:
   --household <이름>     대상 가정.
   --channel <채널 id>    보낼 채널. 없으면 그 가정에 연결된 채널이다.
-  --template <키>        daily_brief, reaction_prompt, all, household_board 중 하나. 기본 all.
+  --template <키>        daily_brief, reaction_prompt, stock_alert, all, household_board 중 하나. 기본 all.
                          household_board는 메시지가 아니라 캔버스 상태판이라 all에 들지 않는다.
   --dry-run              보내지 않고 페이로드 JSON을 출력한다. Block Kit Builder에 붙여 넣을 수 있다.`;
 
-const TEMPLATES: readonly TemplateKey[] = ['daily_brief', 'reaction_prompt'];
+const TEMPLATES: readonly TemplateKey[] = ['daily_brief', 'reaction_prompt', 'stock_alert'];
 
 const PREVIEW_BANNER = ':warning: *[미리보기]* 버튼을 누르면 실제로 기록됩니다.';
 
@@ -129,9 +130,13 @@ function selectedTemplates(value: string | undefined): readonly TemplateKey[] {
 /**
  * The follow-up is built from today's new ingredients of the first slot that has any, the way the
  * dispatcher builds it once that meal is fed. With no new ingredient there is nothing to ask.
+ *
+ * The stock alert is rendered as it is even with no item: whether to send it is the dispatcher's
+ * call, and a preview is for seeing the layout.
  */
 function render(key: TemplateKey, brief: DailyBrief): { key: TemplateKey; message: SlackMessage }[] {
   if (key === 'daily_brief') return [{ key, message: dailyBriefTemplate.render(brief) }];
+  if (key === 'stock_alert') return [{ key, message: stockAlertTemplate.render({ date: brief.date, alert: brief.stockAlert }) }];
 
   const [first] = brief.newIngredients;
   if (first === undefined) {
