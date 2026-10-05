@@ -13,7 +13,7 @@ export function registerAlertTools(server: McpServer, deps: ToolDeps, caller: Ca
     {
       title: '데일리 브리프',
       description:
-        '오늘 날짜와 일차, 끼니별 식단, 새 재료 관찰 안내, 재고현황과 소진 예상일, 부족 예측, 임계개수와 임계일 알람, 상비 재료 목록, 확인 필요 항목을 한 번에 돌려준다. 저장된 브리프를 읽는 것이 아니라 부를 때마다 계산한다.',
+        '오늘 날짜와 일차, 끼니별 식단, 새 재료 관찰 안내, 재고현황과 소진 예상일·부족 시작일, 부족 예측, 재고 알람(7일 안에 부족해지거나 임계개수 이하인 재료와 남은 일수), 임계개수와 임계일 알람, 상비 재료 목록, 확인 필요 항목을 한 번에 돌려준다. 저장된 브리프를 읽는 것이 아니라 부를 때마다 계산한다.',
       inputSchema: z.object({}),
     },
     async () =>
@@ -35,6 +35,7 @@ export function registerAlertTools(server: McpServer, deps: ToolDeps, caller: Ca
             overdue: row.overdue,
             weightMismatched: row.weightMismatched,
             depletionDate: row.depletionDate,
+            firstShortageDate: row.firstShortageDate,
             nextExpiry: row.nextExpiry,
           })),
           pantryIngredients: brief.pantryIngredients.map((entry) => ({ ingredientName: entry.name })),
@@ -57,6 +58,18 @@ export function registerAlertTools(server: McpServer, deps: ToolDeps, caller: Ca
             remaining: alert.remaining,
             expiry: alert.stage,
           })),
+          stockAlert: {
+            horizonDays: brief.stockAlert.horizonDays,
+            items: brief.stockAlert.items.map((item) => ({
+              ingredientName: item.name,
+              total: item.total,
+              thresholdCubes: item.thresholdCubes,
+              firstShortageDate: item.firstShortageDate,
+              daysUntilShortage: item.daysUntilShortage,
+              horizonShortfallCubes: item.horizonShortfallCubes,
+              urgency: item.urgency,
+            })),
+          },
           needsAttention: {
             heldDeductions: brief.attention.heldDeductions.map((held) => ({
               ingredientName: held.name,

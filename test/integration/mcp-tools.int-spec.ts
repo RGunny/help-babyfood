@@ -887,6 +887,54 @@ describe('예측과 알람 설정', () => {
         .overdue,
     ).toBe(4);
   });
+
+  it('브리프에 재고 알람이 재료 이름으로 실린다', async () => {
+    await call('import_meal_plan', {
+      idempotencyKey: nextKey(),
+      dryRun: false,
+      slot: 'morning',
+      meals: rows(4),
+      fedThrough: null,
+    });
+    await call('update_alert_settings', {
+      idempotencyKey: nextKey(),
+      briefTime: '07:30',
+      shelfLifeDays: 14,
+      thresholds: [{ ingredientName: '브로콜리', thresholdCubes: 3 }],
+    });
+
+    const brief = await call('get_daily_brief');
+
+    expect(brief.stockAlert.horizonDays).toBe(7);
+    const beef = brief.stockAlert.items.find((item: any) => item.ingredientName === '소고기');
+    expect(['urgent', 'upcoming']).toContain(beef.urgency);
+    expect(beef.firstShortageDate).toBe('2026-09-22');
+    expect(beef.daysUntilShortage).toBe(0);
+    expect(beef.horizonShortfallCubes).toBeGreaterThan(0);
+    const broccoli = brief.stockAlert.items.find((item: any) => item.ingredientName === '브로콜리');
+    expect(broccoli.urgency).toBe('low_stock');
+    expect(broccoli.thresholdCubes).toBe(3);
+    for (const item of brief.stockAlert.items) {
+      expect(item).not.toHaveProperty('ingredientId');
+    }
+  });
+
+  it('브리프의 재고 행에 부족 시작일이 실린다', async () => {
+    await call('import_meal_plan', {
+      idempotencyKey: nextKey(),
+      dryRun: false,
+      slot: 'morning',
+      meals: rows(4),
+      fedThrough: null,
+    });
+
+    const brief = await call('get_daily_brief');
+
+    const beef = brief.stock.find((row: any) => row.ingredientName === '소고기');
+    expect(beef.total).toBe(0);
+    expect(beef.firstShortageDate).toBe('2026-09-22');
+    expect(beef.depletionDate).toBeNull();
+  });
 });
 
 describe('입력 검증', () => {
