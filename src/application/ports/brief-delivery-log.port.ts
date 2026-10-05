@@ -18,6 +18,13 @@ export interface ReactionPromptClaim {
   readonly attempts: number;
 }
 
+export interface StockAlertClaim {
+  readonly kind: 'stock_alert';
+  readonly householdId: string;
+  readonly date: LocalDate;
+  readonly attempts: number;
+}
+
 /**
  * A claim the caller won and now owes a result for.
  *
@@ -25,7 +32,7 @@ export interface ReactionPromptClaim {
  * from the shape. A claim without a slot happening to be a brief is true today and stops being true
  * the moment either record grows a field.
  */
-export type DeliveryClaim = DailyBriefClaim | ReactionPromptClaim;
+export type DeliveryClaim = DailyBriefClaim | ReactionPromptClaim | StockAlertClaim;
 
 /** 한 번의 쓸기가 "지금"을 보는 방식. 시각은 전부 호출자가 준다. */
 export interface DeliveryDue {
@@ -51,6 +58,7 @@ export interface DeliveryDue {
 export interface BriefDeliveryLogPort {
   claimDueDailyBriefs(due: DeliveryDue): Promise<DailyBriefClaim[]>;
   claimDueReactionPrompts(due: DeliveryDue): Promise<ReactionPromptClaim[]>;
+  claimDueStockAlerts(due: DeliveryDue): Promise<StockAlertClaim[]>;
   recordSent(claim: DeliveryClaim, reference: string, at: Date): Promise<void>;
   recordSkipped(claim: DeliveryClaim, reason: string, at: Date): Promise<void>;
   recordFailed(claim: DeliveryClaim, error: string, at: Date, nextAttemptAt: Date): Promise<void>;

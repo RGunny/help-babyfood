@@ -4,6 +4,7 @@ import {
   DeliveryClaim,
   DeliveryDue,
   ReactionPromptClaim,
+  StockAlertClaim,
 } from '../../application/ports/brief-delivery-log.port.js';
 import { MealSlot } from '../../domain/shared/meal-slot.js';
 import { DEFAULT_BRIEF_TIME } from './mappers/state.mapper.js';
@@ -20,6 +21,14 @@ interface ReactionClaimRow extends BriefClaimRow {
 }
 
 const MS_PER_SECOND = 1_000;
+
+/**
+ * Reached only if `DeliveryClaim` grows a kind the `record*` methods do not handle. The `never`
+ * parameter is what makes that a type error rather than a write to the wrong table.
+ */
+function unknownClaim(claim: never): never {
+  throw new Error(`unknown delivery claim: ${JSON.stringify(claim)}`);
+}
 
 /**
  * The delivery history of chapter 6, and the claim that decides who sends.
@@ -111,6 +120,42 @@ export class PrismaBriefDeliveryLog implements BriefDeliveryLogPort {
     }));
   }
 
+  /**
+   * Today's stock alerts that are due. The alert goes out at the brief time, because ADR 0010 adds no
+   * setting of its own, so the condition is the one the brief claim uses.
+   */
+  async claimDueStockAlerts(due: DeliveryDue): Promise<StockAlertClaim[]> {
+    const claimed = await this.prisma.$queryRaw<BriefClaimRow[]>`
+      INSERT INTO stock_alert_delivery (household_id, date, status, attempts, claimed_at, updated_at)
+      SELECT h.id, ${due.date}::date, 'pending'::delivery_status, 1, ${due.instant}, ${due.instant}
+      FROM household h
+      LEFT JOIN alert_settings a ON a.household_id = h.id
+      WHERE COALESCE(a.brief_time, ${DEFAULT_BRIEF_TIME}) <= ${due.time}
+      ON CONFLICT (household_id, date) DO NOTHING
+      RETURNING household_id, attempts
+    `;
+
+    const reclaimed = await this.prisma.$queryRaw<BriefClaimRow[]>`
+      UPDATE stock_alert_delivery
+      SET status = 'pending'::delivery_status,
+          attempts = attempts + 1,
+          claimed_at = ${due.instant},
+          updated_at = ${due.instant}
+      WHERE date = ${due.date}::date
+        AND attempts < ${due.maxAttempts}
+        AND ( (status = 'pending'::delivery_status AND claimed_at <= ${this.leaseCutoff(due)})
+           OR (status = 'failed'::delivery_status AND next_attempt_at <= ${due.instant}) )
+      RETURNING household_id, attempts
+    `;
+
+    return [...claimed, ...reclaimed].map((row) => ({
+      kind: 'stock_alert',
+      householdId: row.household_id,
+      date: due.date,
+      attempts: row.attempts,
+    }));
+  }
+
   async recordSent(claim: DeliveryClaim, reference: string, at: Date): Promise<void> {
     if (claim.kind === 'brief') {
       await this.prisma.$executeRaw`
@@ -120,13 +165,25 @@ export class PrismaBriefDeliveryLog implements BriefDeliveryLogPort {
       `;
       return;
     }
-    await this.prisma.$executeRaw`
-      UPDATE reaction_prompt_delivery
-      SET status = 'sent'::delivery_status, sent_at = ${at}, message_reference = ${reference}, updated_at = ${at}
-      WHERE household_id = ${claim.householdId}::uuid
-        AND date = ${claim.date}::date
-        AND slot = ${claim.slot}::meal_slot
-    `;
+    if (claim.kind === 'stock_alert') {
+      await this.prisma.$executeRaw`
+        UPDATE stock_alert_delivery
+        SET status = 'sent'::delivery_status, sent_at = ${at}, message_reference = ${reference}, updated_at = ${at}
+        WHERE household_id = ${claim.householdId}::uuid AND date = ${claim.date}::date
+      `;
+      return;
+    }
+    if (claim.kind === 'reaction_prompt') {
+      await this.prisma.$executeRaw`
+        UPDATE reaction_prompt_delivery
+        SET status = 'sent'::delivery_status, sent_at = ${at}, message_reference = ${reference}, updated_at = ${at}
+        WHERE household_id = ${claim.householdId}::uuid
+          AND date = ${claim.date}::date
+          AND slot = ${claim.slot}::meal_slot
+      `;
+      return;
+    }
+    unknownClaim(claim);
   }
 
   /** 종결이다. 보낼 곳이 없었다는 기록이고, 다음 클레임 질의가 이 행을 다시 잡지 않는다. */
@@ -139,13 +196,25 @@ export class PrismaBriefDeliveryLog implements BriefDeliveryLogPort {
       `;
       return;
     }
-    await this.prisma.$executeRaw`
-      UPDATE reaction_prompt_delivery
-      SET status = 'skipped'::delivery_status, outcome_reason = ${reason}, updated_at = ${at}
-      WHERE household_id = ${claim.householdId}::uuid
-        AND date = ${claim.date}::date
-        AND slot = ${claim.slot}::meal_slot
-    `;
+    if (claim.kind === 'stock_alert') {
+      await this.prisma.$executeRaw`
+        UPDATE stock_alert_delivery
+        SET status = 'skipped'::delivery_status, outcome_reason = ${reason}, updated_at = ${at}
+        WHERE household_id = ${claim.householdId}::uuid AND date = ${claim.date}::date
+      `;
+      return;
+    }
+    if (claim.kind === 'reaction_prompt') {
+      await this.prisma.$executeRaw`
+        UPDATE reaction_prompt_delivery
+        SET status = 'skipped'::delivery_status, outcome_reason = ${reason}, updated_at = ${at}
+        WHERE household_id = ${claim.householdId}::uuid
+          AND date = ${claim.date}::date
+          AND slot = ${claim.slot}::meal_slot
+      `;
+      return;
+    }
+    unknownClaim(claim);
   }
 
   /**
@@ -165,16 +234,31 @@ export class PrismaBriefDeliveryLog implements BriefDeliveryLogPort {
       `;
       return;
     }
-    await this.prisma.$executeRaw`
-      UPDATE reaction_prompt_delivery
-      SET status = 'failed'::delivery_status,
-          next_attempt_at = ${nextAttemptAt},
-          outcome_reason = ${error},
-          updated_at = ${at}
-      WHERE household_id = ${claim.householdId}::uuid
-        AND date = ${claim.date}::date
-        AND slot = ${claim.slot}::meal_slot
-    `;
+    if (claim.kind === 'stock_alert') {
+      await this.prisma.$executeRaw`
+        UPDATE stock_alert_delivery
+        SET status = 'failed'::delivery_status,
+            next_attempt_at = ${nextAttemptAt},
+            outcome_reason = ${error},
+            updated_at = ${at}
+        WHERE household_id = ${claim.householdId}::uuid AND date = ${claim.date}::date
+      `;
+      return;
+    }
+    if (claim.kind === 'reaction_prompt') {
+      await this.prisma.$executeRaw`
+        UPDATE reaction_prompt_delivery
+        SET status = 'failed'::delivery_status,
+            next_attempt_at = ${nextAttemptAt},
+            outcome_reason = ${error},
+            updated_at = ${at}
+        WHERE household_id = ${claim.householdId}::uuid
+          AND date = ${claim.date}::date
+          AND slot = ${claim.slot}::meal_slot
+      `;
+      return;
+    }
+    unknownClaim(claim);
   }
 
   /**

@@ -230,6 +230,103 @@ describe('후속 메시지 클레임', () => {
   });
 });
 
+describe('재고 알람 클레임', () => {
+  it('브리프 시각 전에는 재고 알람을 클레임하지 않는다', async () => {
+    const house = await household();
+    await setBriefTime(house, '09:00');
+
+    expect(await log.claimDueStockAlerts(due('08:59'))).toEqual([]);
+    expect(await log.claimDueStockAlerts(due('09:00'))).toHaveLength(1);
+  });
+
+  it('알람 설정을 한 번도 저장하지 않은 가정도 기본 시각 07:30에 재고 알람이 클레임된다', async () => {
+    const house = await household();
+
+    expect(await log.claimDueStockAlerts(due('07:29'))).toEqual([]);
+
+    const claims = await log.claimDueStockAlerts(due('07:30'));
+    expect(claims).toEqual([
+      { kind: 'stock_alert', householdId: house.id, date: localDate(TODAY), attempts: 1 },
+    ]);
+  });
+
+  it('재고 알람은 하루 한 건이다', async () => {
+    await household();
+
+    expect(await log.claimDueStockAlerts(due('07:30'))).toHaveLength(1);
+    expect(await log.claimDueStockAlerts(due('07:31'))).toEqual([]);
+  });
+
+  it('같은 가정과 날짜의 재고 알람을 동시에 두 번 클레임하면 한쪽만 행을 얻는다', async () => {
+    await household();
+
+    const [first, second] = await Promise.all([
+      log.claimDueStockAlerts(due('07:30')),
+      log.claimDueStockAlerts(due('07:30')),
+    ]);
+
+    expect(first.length + second.length).toBe(1);
+  });
+
+  it('브리프를 클레임해도 재고 알람 클레임은 따로 얻는다', async () => {
+    const house = await household();
+
+    expect(await log.claimDueDailyBriefs(due('07:30'))).toHaveLength(1);
+
+    expect(await log.claimDueStockAlerts(due('07:30'))).toEqual([
+      { kind: 'stock_alert', householdId: house.id, date: localDate(TODAY), attempts: 1 },
+    ]);
+  });
+
+  it('보냈다고 기록한 재고 알람은 다시 클레임되지 않는다', async () => {
+    await household();
+    const [claim] = await log.claimDueStockAlerts(due('07:30'));
+    await log.recordSent(claim!, '1726980000.000300', due('07:30').instant);
+
+    expect(await log.claimDueStockAlerts(due('09:00'))).toEqual([]);
+  });
+
+  it('건너뛰었다고 기록한 재고 알람도 다시 클레임되지 않는다', async () => {
+    await household();
+    const [claim] = await log.claimDueStockAlerts(due('07:30'));
+    await log.recordSkipped(claim!, 'no_stock_alert_items', due('07:30').instant);
+
+    expect(await log.claimDueStockAlerts(due('09:00'))).toEqual([]);
+  });
+
+  it('실패한 재고 알람은 다음 시도 시각이 지나면 잡히고 시도 횟수가 1 늘어난다', async () => {
+    const house = await household();
+    const [claim] = await log.claimDueStockAlerts(due('07:30'));
+    await log.recordFailed(claim!, 'channel_not_found', due('07:30').instant, due('07:31').instant);
+
+    expect(await log.claimDueStockAlerts(due('07:30'))).toEqual([]);
+
+    expect(await log.claimDueStockAlerts(due('07:31'))).toEqual([
+      { kind: 'stock_alert', householdId: house.id, date: localDate(TODAY), attempts: 2 },
+    ]);
+  });
+
+  it('시도 횟수가 상한인 재고 알람은 다음 시도 시각이 지나도 잡히지 않는다', async () => {
+    await household();
+    const ceiling = { maxAttempts: 1 };
+    const [claim] = await log.claimDueStockAlerts(due('07:30', ceiling));
+    await log.recordFailed(claim!, 'channel_not_found', due('07:30').instant, due('07:31').instant);
+
+    expect(await log.claimDueStockAlerts(due('07:31', ceiling))).toEqual([]);
+  });
+
+  it('발송 중에 죽어 pending으로 남은 재고 알람은 리스가 지나면 다시 잡힌다', async () => {
+    const house = await household();
+    await log.claimDueStockAlerts(due('07:30'));
+
+    expect(await log.claimDueStockAlerts(due('07:34'))).toEqual([]);
+
+    expect(await log.claimDueStockAlerts(due('07:35'))).toEqual([
+      { kind: 'stock_alert', householdId: house.id, date: localDate(TODAY), attempts: 2 },
+    ]);
+  });
+});
+
 describe('발송 이력의 제약', () => {
   it('보냈다면서 보낸 시각이 없는 행은 거부한다', async () => {
     const house = await household();
@@ -303,5 +400,39 @@ describe('발송 이력의 제약', () => {
         VALUES (${house.id}::uuid, ${TODAY}::date, 'morning'::meal_slot, 'sent'::delivery_status, 1, ${instant}, ${instant})
       `,
     ).rejects.toThrow(/reaction_prompt_delivery_sent_check/);
+  });
+
+  it('재고 알람 이력에도 같은 제약이 걸려 있다', async () => {
+    const house = await household();
+    const instant = due('07:30').instant;
+
+    await expect(
+      services.prisma.$executeRaw`
+        INSERT INTO stock_alert_delivery (household_id, date, status, attempts, claimed_at, updated_at)
+        VALUES (${house.id}::uuid, ${TODAY}::date, 'sent'::delivery_status, 1, ${instant}, ${instant})
+      `,
+    ).rejects.toThrow(/stock_alert_delivery_sent_check/);
+
+    await expect(
+      services.prisma.$executeRaw`
+        INSERT INTO stock_alert_delivery
+          (household_id, date, status, attempts, claimed_at, updated_at, outcome_reason)
+        VALUES (${house.id}::uuid, ${TODAY}::date, 'failed'::delivery_status, 1, ${instant}, ${instant}, 'boom')
+      `,
+    ).rejects.toThrow(/stock_alert_delivery_failed_check/);
+
+    await expect(
+      services.prisma.$executeRaw`
+        INSERT INTO stock_alert_delivery (household_id, date, status, attempts, claimed_at, updated_at)
+        VALUES (${house.id}::uuid, ${TODAY}::date, 'skipped'::delivery_status, 1, ${instant}, ${instant})
+      `,
+    ).rejects.toThrow(/stock_alert_delivery_skipped_check/);
+
+    await expect(
+      services.prisma.$executeRaw`
+        INSERT INTO stock_alert_delivery (household_id, date, status, attempts, claimed_at, updated_at)
+        VALUES (${house.id}::uuid, ${TODAY}::date, 'pending'::delivery_status, 0, ${instant}, ${instant})
+      `,
+    ).rejects.toThrow(/stock_alert_delivery_attempts_check/);
   });
 });

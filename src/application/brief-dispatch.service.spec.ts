@@ -11,6 +11,7 @@ import {
   DeliveryClaim,
   DeliveryDue,
   ReactionPromptClaim,
+  StockAlertClaim,
 } from './ports/brief-delivery-log.port.js';
 import { BriefDeliveryPort, DeliveryResult, ReactionPrompt } from './ports/brief-delivery.port.js';
 import { ClockPort } from './ports/clock.port.js';
@@ -44,6 +45,11 @@ class RecordingLog implements BriefDeliveryLogPort {
   async claimDueReactionPrompts(due: DeliveryDue): Promise<ReactionPromptClaim[]> {
     this.due.push(due);
     return [...this.prompts];
+  }
+
+  async claimDueStockAlerts(due: DeliveryDue): Promise<StockAlertClaim[]> {
+    this.due.push(due);
+    return [];
   }
 
   async recordSent(claim: DeliveryClaim, reference: string, at: Date): Promise<void> {
