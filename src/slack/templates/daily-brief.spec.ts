@@ -36,6 +36,7 @@ function brief(overrides: Partial<DailyBrief> = {}): DailyBrief {
     shortages: [],
     thresholdAlerts: [],
     expiryAlerts: [],
+    stockAlert: { horizonDays: 7, items: [] },
     attention: {
       heldDeductions: [],
       unrecordedReactions: [],
@@ -57,6 +58,7 @@ function stockRows(count: number): BriefStockRow[] {
     overdue: 2,
     weightMismatched: 1,
     depletionDate: localDate('2026-10-01'),
+    firstShortageDate: null,
     nextExpiry: null,
   }));
 }
@@ -163,6 +165,7 @@ function stockRow(name: string, overrides: Partial<BriefStockRow> = {}): BriefSt
     overdue: 0,
     weightMismatched: 0,
     depletionDate: null,
+    firstShortageDate: null,
     nextExpiry: null,
     ...overrides,
   };
@@ -485,6 +488,7 @@ describe('브리프 렌더링', () => {
             overdue: 2,
             weightMismatched: 0,
             depletionDate: null,
+            firstShortageDate: null,
             nextExpiry: null,
           },
         ],
@@ -548,6 +552,7 @@ describe('브리프 v4 페이로드', () => {
       overdue,
       weightMismatched: 0,
       depletionDate: depletion === null ? null : localDate(depletion),
+      firstShortageDate: null,
       nextExpiry,
     });
     const discard = (

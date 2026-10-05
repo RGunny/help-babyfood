@@ -325,6 +325,202 @@ describe('데일리 브리프', () => {
     });
   });
 
+  describe('재고 알람', () => {
+    /** 죽의 쌀과 오트밀은 넉넉하게 두어 토핑 재료만 항목이 되게 한다. */
+    const stockWith = (specs: readonly StockSpec[]) =>
+      stock([
+        { ingredientId: 'rice', cookedOn: '2026-09-15', cubes: 20 },
+        { ingredientId: 'oatmeal', cookedOn: '2026-09-15', cubes: 20 },
+        ...specs,
+      ]);
+    /** 식단 n번은 오늘 + (n − 1)일이다. */
+    const mealsOf = (count: number, toppings: string[]): Meal[] =>
+      Array.from({ length: count }, (_, index) => meal(index + 1, toppings));
+
+    it('첫 부족일이 오늘이나 내일이면 urgent다', () => {
+      const today = brief({
+        meals: [meal(1, ['pea']), meal(2, ['beef']), meal(3, ['broccoli'])],
+        stock: stockWith([]),
+      });
+
+      expect(today.stockAlert.horizonDays).toBe(7);
+      expect(today.stockAlert.items).toMatchObject([
+        { name: '완두콩', firstShortageDate: TODAY, daysUntilShortage: 0, urgency: 'urgent' },
+        { name: '소고기', firstShortageDate: dateOf(1), daysUntilShortage: 1, urgency: 'urgent' },
+        { name: '브로콜리', firstShortageDate: dateOf(2), daysUntilShortage: 2, urgency: 'upcoming' },
+      ]);
+    });
+
+    it('첫 부족일이 7일 안이면 upcoming이다', () => {
+      // 소고기 일곱 개가 오늘부터 6일째까지를 덮고 7일째 식단(8번)이 처음 모자란다.
+      const today = brief({
+        meals: mealsOf(8, ['beef']),
+        stock: stockWith([{ ingredientId: 'beef', cookedOn: '2026-09-15', cubes: 7 }]),
+      });
+
+      expect(today.stockAlert.items).toEqual([
+        {
+          ingredientId: 'beef',
+          name: '소고기',
+          total: 7,
+          thresholdCubes: null,
+          firstShortageDate: dateOf(7),
+          daysUntilShortage: 7,
+          horizonShortfallCubes: 1,
+          urgency: 'upcoming',
+        },
+      ]);
+    });
+
+    it('첫 부족일이 8일 뒤이고 임계개수가 없으면 항목이 아니다', () => {
+      const today = brief({
+        meals: mealsOf(9, ['beef']),
+        stock: stockWith([{ ingredientId: 'beef', cookedOn: '2026-09-15', cubes: 8 }]),
+      });
+
+      expect(today.stock.find((row) => row.name === '소고기')!.firstShortageDate).toBe(dateOf(8));
+      expect(today.stockAlert.items).toEqual([]);
+    });
+
+    it('첫 부족일이 8일 뒤여도 임계개수 이하면 low_stock으로 든다', () => {
+      const today = brief({
+        meals: mealsOf(9, ['beef']),
+        stock: stockWith([{ ingredientId: 'beef', cookedOn: '2026-09-15', cubes: 8 }]),
+        thresholds: new Map([['beef', 8]]),
+      });
+
+      expect(today.stockAlert.items).toEqual([
+        {
+          ingredientId: 'beef',
+          name: '소고기',
+          total: 8,
+          thresholdCubes: 8,
+          firstShortageDate: dateOf(8),
+          daysUntilShortage: 8,
+          horizonShortfallCubes: 0,
+          urgency: 'low_stock',
+        },
+      ]);
+    });
+
+    it('식단에 없는 재료도 임계개수 이하면 low_stock이고 남은 일수가 없다', () => {
+      const today = brief({
+        meals: mealsOf(3, []),
+        stock: stockWith([]),
+        thresholds: new Map([['pea', 4]]),
+      });
+
+      expect(today.stockAlert.items).toEqual([
+        {
+          ingredientId: 'pea',
+          name: '완두콩',
+          total: 0,
+          thresholdCubes: 4,
+          firstShortageDate: null,
+          daysUntilShortage: null,
+          horizonShortfallCubes: 0,
+          urgency: 'low_stock',
+        },
+      ]);
+    });
+
+    it('임계개수보다 많고 부족이 7일 밖이면 항목이 아니다', () => {
+      const today = brief({
+        meals: mealsOf(9, ['beef']),
+        stock: stockWith([
+          { ingredientId: 'beef', cookedOn: '2026-09-15', cubes: 8 },
+          { ingredientId: 'broccoli', cookedOn: '2026-09-15', cubes: 5 },
+        ]),
+        thresholds: new Map([
+          ['beef', 7],
+          ['broccoli', 4],
+        ]),
+      });
+
+      expect(today.stockAlert.items).toEqual([]);
+    });
+
+    it('7일 안의 부족 수량은 7일 안의 식단만 센다', () => {
+      // 소고기 여섯 개 뒤로 식단 7~10번이 모자라고, 그중 7일 창에 드는 것은 7번과 8번이다.
+      const today = brief({
+        meals: mealsOf(10, ['beef']),
+        stock: stockWith([{ ingredientId: 'beef', cookedOn: '2026-09-15', cubes: 6 }]),
+      });
+
+      expect(today.shortages).toMatchObject([{ name: '소고기', shortfallCubes: 4 }]);
+      expect(today.stockAlert.items).toMatchObject([
+        { name: '소고기', firstShortageDate: dateOf(6), horizonShortfallCubes: 2, urgency: 'upcoming' },
+      ]);
+    });
+
+    it('재고가 있어도 중량이 달라 차감하지 못하면 부족으로 든다', () => {
+      const today = brief({
+        meals: [meal(1, ['broccoli'])],
+        stock: stockWith([{ ingredientId: 'broccoli', cookedOn: '2026-09-15', cubes: 4, cubeWeightGram: 20 }]),
+        // 합계 4는 임계개수 3보다 많다. 항목이 되는 이유는 예측뿐이다.
+        thresholds: new Map([['broccoli', 3]]),
+      });
+
+      expect(today.stockAlert.items).toEqual([
+        {
+          ingredientId: 'broccoli',
+          name: '브로콜리',
+          total: 4,
+          thresholdCubes: null,
+          firstShortageDate: TODAY,
+          daysUntilShortage: 0,
+          horizonShortfallCubes: 1,
+          urgency: 'urgent',
+        },
+      ]);
+    });
+
+    it('상비 재료는 항목이 되지 않는다', () => {
+      const today = brief({
+        meals: [meal(1, ['egg'])],
+        stock: stockWith([]),
+        thresholds: new Map([['egg', 4]]),
+      });
+
+      expect(today.stockAlert.items).toEqual([]);
+    });
+
+    it('항목은 첫 부족일이 이른 순이고 첫 부족일이 없는 항목이 뒤다', () => {
+      // 재고 표의 순서는 쌀, 오트밀, 소고기, 브로콜리, 완두콩이다.
+      const today = brief({
+        meals: [meal(1, []), meal(2, ['broccoli']), meal(3, []), meal(4, ['beef'])],
+        stock: stock([
+          { ingredientId: 'rice', cookedOn: '2026-09-15', cubes: 4 },
+          { ingredientId: 'oatmeal', cookedOn: '2026-09-15', cubes: 20 },
+        ]),
+        thresholds: new Map([
+          ['rice', 4],
+          ['pea', 4],
+        ]),
+      });
+
+      expect(today.stockAlert.items.map((item) => [item.name, item.firstShortageDate])).toEqual([
+        ['브로콜리', dateOf(1)],
+        ['소고기', dateOf(3)],
+        ['쌀', null],
+        ['완두콩', null],
+      ]);
+    });
+
+    it('재고 표의 행에 첫 부족일이 붙고 재고가 0인 재료도 식단 날짜가 붙는다', () => {
+      const today = brief({
+        meals: [meal(1, ['beef']), meal(2, ['beef', 'pea']), meal(3, ['beef'])],
+        stock: stockWith([{ ingredientId: 'beef', cookedOn: '2026-09-15', cubes: 2 }]),
+      });
+
+      const rowOf = (name: string) => today.stock.find((row) => row.name === name)!;
+      expect(rowOf('소고기')).toMatchObject({ depletionDate: dateOf(1), firstShortageDate: dateOf(2) });
+      // 할당이 한 번도 성공하지 않아 소진 예상일은 없지만 모자라는 첫날은 있다.
+      expect(rowOf('완두콩')).toMatchObject({ total: 0, depletionDate: null, firstShortageDate: dateOf(1) });
+      expect(rowOf('쌀').firstShortageDate).toBeNull();
+    });
+  });
+
   describe('임계일 알람', () => {
     it('전일과 당일과 초과만 오르고 신선한 배치는 오르지 않는다', () => {
       const today = brief({

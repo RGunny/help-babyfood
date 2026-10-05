@@ -67,12 +67,12 @@ const BRIEF: DailyBrief = {
   slots: [],
   newIngredients: [],
   stock: [
-    { ingredientId: id(1), name: '쌀', total: 5, fresh: 5, overdue: 0, weightMismatched: 0, depletionDate: localDate('2026-10-01'), nextExpiry: { date: localDate('2026-10-06'), stage: { kind: 'fresh' } } },
-    { ingredientId: id(2), name: '오트밀', total: 13, fresh: 13, overdue: 0, weightMismatched: 0, depletionDate: null, nextExpiry: { date: localDate('2026-09-28'), stage: { kind: 'due_soon', daysLeft: 2 } } },
-    { ingredientId: id(3), name: '소고기', total: 16, fresh: 16, overdue: 0, weightMismatched: 0, depletionDate: localDate('2026-10-12'), nextExpiry: { date: localDate('2026-10-08'), stage: { kind: 'fresh' } } },
-    { ingredientId: id(4), name: '브로콜리', total: 3, fresh: 0, overdue: 3, weightMismatched: 0, depletionDate: localDate('2026-09-30'), nextExpiry: { date: localDate('2026-09-18'), stage: { kind: 'overdue', overdueDays: 8 } } },
-    { ingredientId: id(5), name: '당근', total: 0, fresh: 0, overdue: 0, weightMismatched: 0, depletionDate: null, nextExpiry: null },
-    { ingredientId: id(6), name: '오이', total: 0, fresh: 0, overdue: 0, weightMismatched: 0, depletionDate: null, nextExpiry: null },
+    { ingredientId: id(1), name: '쌀', total: 5, fresh: 5, overdue: 0, weightMismatched: 0, depletionDate: localDate('2026-10-01'), firstShortageDate: null, nextExpiry: { date: localDate('2026-10-06'), stage: { kind: 'fresh' } } },
+    { ingredientId: id(2), name: '오트밀', total: 13, fresh: 13, overdue: 0, weightMismatched: 0, depletionDate: null, firstShortageDate: null, nextExpiry: { date: localDate('2026-09-28'), stage: { kind: 'due_soon', daysLeft: 2 } } },
+    { ingredientId: id(3), name: '소고기', total: 16, fresh: 16, overdue: 0, weightMismatched: 0, depletionDate: localDate('2026-10-12'), firstShortageDate: null, nextExpiry: { date: localDate('2026-10-08'), stage: { kind: 'fresh' } } },
+    { ingredientId: id(4), name: '브로콜리', total: 3, fresh: 0, overdue: 3, weightMismatched: 0, depletionDate: localDate('2026-09-30'), firstShortageDate: null, nextExpiry: { date: localDate('2026-09-18'), stage: { kind: 'overdue', overdueDays: 8 } } },
+    { ingredientId: id(5), name: '당근', total: 0, fresh: 0, overdue: 0, weightMismatched: 0, depletionDate: null, firstShortageDate: null, nextExpiry: null },
+    { ingredientId: id(6), name: '오이', total: 0, fresh: 0, overdue: 0, weightMismatched: 0, depletionDate: null, firstShortageDate: null, nextExpiry: null },
   ],
   pantryIngredients: [{ ingredientId: id(8), name: '계란' }],
   shortages: [],
@@ -88,6 +88,7 @@ const BRIEF: DailyBrief = {
       stage: { kind: 'overdue', overdueDays: 8 },
     },
   ],
+  stockAlert: { horizonDays: 7, items: [] },
   attention: {
     heldDeductions: [],
     unrecordedReactions: [{ ingredientId: id(7), name: '청경채', date: TODAY, slot: 'morning' }],
@@ -161,6 +162,7 @@ describe('상태판 캔버스', () => {
       overdue: 0,
       weightMismatched: 0,
       depletionDate: null,
+      firstShortageDate: null,
       nextExpiry: null,
     }));
     const markdown = householdBoardTemplate.render(board({ brief: { ...BRIEF, stock, thresholdAlerts: [] } }));

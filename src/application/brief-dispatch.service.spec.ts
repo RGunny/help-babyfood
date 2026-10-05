@@ -140,6 +140,7 @@ function briefOf(slots: readonly BriefSlot[] = [], newIngredients: readonly Brie
     shortages: [],
     thresholdAlerts: [],
     expiryAlerts: [],
+    stockAlert: { horizonDays: 7, items: [] },
     attention: {
       heldDeductions: [],
       unrecordedReactions: [],

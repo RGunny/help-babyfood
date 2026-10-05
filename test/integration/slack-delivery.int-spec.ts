@@ -91,6 +91,7 @@ const BRIEF: DailyBrief = {
   shortages: [],
   thresholdAlerts: [],
   expiryAlerts: [],
+  stockAlert: { horizonDays: 7, items: [] },
   attention: {
     heldDeductions: [],
     unrecordedReactions: [],

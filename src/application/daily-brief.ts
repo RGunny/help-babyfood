@@ -9,12 +9,13 @@ import { Meal, effectiveComposition } from '../domain/meal-plan/meal.js';
 import { NoFeedRecord } from '../domain/meal-plan/meal-calendar.js';
 import { expandToCubeNeeds } from '../domain/menu/menu.js';
 import { RuleWarningCode, validateMealPlan } from '../domain/rules/meal-rules.js';
-import { LocalDate, daysBetween } from '../domain/shared/local-date.js';
+import { LocalDate, addDays, daysBetween } from '../domain/shared/local-date.js';
 import { LocalDateTime, LocalTime } from '../domain/shared/local-time.js';
 import { MealSlot } from '../domain/shared/meal-slot.js';
 import { ExpiryStage, expiryDateOf } from '../domain/stock/expiry.js';
-import { forecastShortage } from '../domain/forecast/shortage-forecast.js';
+import { IngredientForecast, forecastShortage } from '../domain/forecast/shortage-forecast.js';
 import {
+  IngredientStock,
   batchesNeedingExpiryAlert,
   isAtOrBelowThreshold,
   summarizeStock,
@@ -35,6 +36,24 @@ import { FeedingHistory } from './ports/feeding-history.port.js';
  * rather than about stock.
  */
 export const PLAN_RUNWAY_WARNING_DAYS = 7;
+
+/**
+ * Days ahead of today within which a first shortage puts an ingredient in the stock alert.
+ *
+ * Not a stored setting, for the same reason as above: ADR 0010 keeps the alert settings at three.
+ * Seven is one week. Over the whole plan the alert listed 27 ingredients on the day it was
+ * decided and ten within the week, and the shortfall it reports is what one cooking session can
+ * make rather than a month of rice.
+ */
+export const STOCK_ALERT_HORIZON_DAYS = 7;
+
+/**
+ * Days ahead of today within which a first shortage is urgent. Not a stored setting either.
+ *
+ * One is the time cooking takes (ADR 0010): a meal of today or tomorrow is not fed unless the
+ * cubes are cooked now.
+ */
+export const STOCK_ALERT_URGENT_DAYS = 1;
 
 export interface BriefMealItem {
   readonly menuName: string | null;
@@ -75,6 +94,8 @@ export interface BriefStockRow {
   readonly weightMismatched: number;
   /** Date the plan uses the last deductible cube. Null when stock outlasts the plan. */
   readonly depletionDate: LocalDate | null;
+  /** First meal date stock cannot cover, over the whole plan. Null when stock outlasts the plan. */
+  readonly firstShortageDate: LocalDate | null;
   /** Earliest expiry among the batches with cubes left. Null when nothing is in the freezer. */
   readonly nextExpiry: BriefNextExpiry | null;
 }
@@ -99,6 +120,28 @@ export interface BriefThresholdAlert {
   readonly name: string;
   readonly total: number;
   readonly thresholdCubes: number;
+}
+
+export type StockAlertUrgency = 'urgent' | 'upcoming' | 'low_stock';
+
+export interface BriefStockAlertItem {
+  readonly ingredientId: string;
+  readonly name: string;
+  readonly total: number;
+  /** The threshold the ingredient reached. Null when it has none or stock is above it. */
+  readonly thresholdCubes: number | null;
+  /** First meal date stock cannot cover, over the whole plan. Null when stock outlasts the plan. */
+  readonly firstShortageDate: LocalDate | null;
+  /** Days from today to `firstShortageDate`. Zero or negative when a meal is already short. */
+  readonly daysUntilShortage: number | null;
+  /** Cubes missing for the meals within the horizon. Zero when the first shortage is beyond it. */
+  readonly horizonShortfallCubes: number;
+  readonly urgency: StockAlertUrgency;
+}
+
+export interface BriefStockAlert {
+  readonly horizonDays: number;
+  readonly items: readonly BriefStockAlertItem[];
 }
 
 export interface BriefExpiryAlert {
@@ -164,6 +207,7 @@ export interface DailyBrief {
   readonly shortages: readonly BriefShortage[];
   readonly thresholdAlerts: readonly BriefThresholdAlert[];
   readonly expiryAlerts: readonly BriefExpiryAlert[];
+  readonly stockAlert: BriefStockAlert;
   readonly attention: BriefAttention;
 }
 
@@ -206,16 +250,26 @@ export function buildDailyBrief(input: DailyBriefInput): DailyBrief {
     today,
     state.alertSettings.shelfLifeDays,
   );
-  const forecasts = new Map(
-    forecastShortage({
-      ingredients: state.ingredients,
-      meals: state.meals,
-      calendar: state.calendar,
-      menus: state.menus,
-      batches: state.batches,
-      entries: state.entries,
-      until: null,
-    }).map((forecast) => [forecast.ingredientId, forecast]),
+  const plan = {
+    ingredients: state.ingredients,
+    meals: state.meals,
+    calendar: state.calendar,
+    menus: state.menus,
+    batches: state.batches,
+    entries: state.entries,
+  };
+  const forecasts = forecastsById(forecastShortage({ ...plan, until: null }));
+  const horizonForecasts = forecastsById(
+    forecastShortage({ ...plan, until: addDays(today, STOCK_ALERT_HORIZON_DAYS) }),
+  );
+  // 임계개수 알람과 재고 알람이 같은 판정을 쓴다. 닿은 재료만 그 임계개수와 함께 남긴다.
+  const reachedThresholds = new Map(
+    stocks.flatMap((stock): [string, number][] => {
+      const threshold = state.thresholds.get(stock.ingredientId);
+      return threshold !== undefined && isAtOrBelowThreshold(stock, threshold)
+        ? [[stock.ingredientId, threshold]]
+        : [];
+    }),
   );
 
   return {
@@ -231,6 +285,7 @@ export function buildDailyBrief(input: DailyBriefInput): DailyBrief {
       overdue: stock.overdue,
       weightMismatched: stock.weightMismatched,
       depletionDate: forecasts.get(stock.ingredientId)?.depletionDate ?? null,
+      firstShortageDate: forecasts.get(stock.ingredientId)?.firstShortageDate ?? null,
       // 배치는 조리일 순이라 첫 배치의 임계일이 가장 이르다.
       nextExpiry:
         stock.batches.length === 0
@@ -253,15 +308,12 @@ export function buildDailyBrief(input: DailyBriefInput): DailyBrief {
         shortfallCubes: forecast.shortfallCubes,
       })),
     thresholdAlerts: stocks
-      .filter((stock) => {
-        const threshold = state.thresholds.get(stock.ingredientId);
-        return threshold !== undefined && isAtOrBelowThreshold(stock, threshold);
-      })
+      .filter((stock) => reachedThresholds.has(stock.ingredientId))
       .map((stock) => ({
         ingredientId: stock.ingredientId,
         name: nameOf(stock.ingredientId),
         total: stock.total,
-        thresholdCubes: state.thresholds.get(stock.ingredientId)!,
+        thresholdCubes: reachedThresholds.get(stock.ingredientId)!,
       })),
     expiryAlerts: batchesNeedingExpiryAlert(stocks).map((batchStock) => ({
       batchId: batchStock.batch.id,
@@ -272,6 +324,7 @@ export function buildDailyBrief(input: DailyBriefInput): DailyBrief {
       remaining: batchStock.remaining,
       stage: batchStock.expiry,
     })),
+    stockAlert: stockAlertOf(stocks, forecasts, horizonForecasts, reachedThresholds, today, nameOf),
     attention: {
       heldDeductions: heldDeductionsOf(input, nameOf),
       unrecordedReactions: unrecordedReactionsOf(state, history, statuses, nameOf),
@@ -355,6 +408,52 @@ function newIngredientsOf(
   return newIngredients;
 }
 
+/**
+ * Ingredients a parent has to cook: short within the horizon by the plan, or at their threshold.
+ *
+ * The two conditions look at different numbers on purpose. The threshold compares the total in the
+ * freezer, while the forecast plays the meals against deductible cubes only. A batch whose cube
+ * weight differs from the serving weight counts in the total but no meal deducts from it, so an
+ * ingredient can sit above its threshold and still be short tomorrow.
+ *
+ * Nothing here is stored. An item stays in the alert until cooking or a plan change removes it
+ * from the next computation.
+ */
+function stockAlertOf(
+  stocks: readonly IngredientStock[],
+  forecasts: ReadonlyMap<string, IngredientForecast>,
+  horizonForecasts: ReadonlyMap<string, IngredientForecast>,
+  reachedThresholds: ReadonlyMap<string, number>,
+  today: LocalDate,
+  nameOf: (ingredientId: string) => string,
+): BriefStockAlert {
+  const items: BriefStockAlertItem[] = [];
+  for (const stock of stocks) {
+    const firstShortageDate = forecasts.get(stock.ingredientId)?.firstShortageDate ?? null;
+    const daysUntilShortage = firstShortageDate === null ? null : daysBetween(today, firstShortageDate);
+    const thresholdCubes = reachedThresholds.get(stock.ingredientId) ?? null;
+    const shortWithinHorizon = daysUntilShortage !== null && daysUntilShortage <= STOCK_ALERT_HORIZON_DAYS;
+    if (!shortWithinHorizon && thresholdCubes === null) continue;
+    items.push({
+      ingredientId: stock.ingredientId,
+      name: nameOf(stock.ingredientId),
+      total: stock.total,
+      thresholdCubes,
+      firstShortageDate,
+      daysUntilShortage,
+      horizonShortfallCubes: horizonForecasts.get(stock.ingredientId)?.shortfallCubes ?? 0,
+      urgency: !shortWithinHorizon
+        ? 'low_stock'
+        : daysUntilShortage <= STOCK_ALERT_URGENT_DAYS
+          ? 'urgent'
+          : 'upcoming',
+    });
+  }
+  // 정렬이 안정적이라 첫 부족일이 같은 항목은 재고 표의 순서를 지킨다.
+  items.sort((a, b) => compareNullsLast(a.firstShortageDate, b.firstShortageDate));
+  return { horizonDays: STOCK_ALERT_HORIZON_DAYS, items };
+}
+
 /** Deductions stock was short for. Recomputed here rather than read from a table; see the header. */
 function heldDeductionsOf(
   input: DailyBriefInput,
@@ -403,6 +502,17 @@ function unrecordedReactionsOf(
     }
   }
   return unrecorded;
+}
+
+function forecastsById(forecasts: readonly IngredientForecast[]): Map<string, IngredientForecast> {
+  return new Map(forecasts.map((forecast) => [forecast.ingredientId, forecast]));
+}
+
+function compareNullsLast(a: LocalDate | null, b: LocalDate | null): number {
+  if (a === b) return 0;
+  if (a === null) return 1;
+  if (b === null) return -1;
+  return a < b ? -1 : 1;
 }
 
 function laterOf(date: LocalDate, other: LocalDate | null): LocalDate {

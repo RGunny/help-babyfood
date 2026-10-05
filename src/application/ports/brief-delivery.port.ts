@@ -1,6 +1,6 @@
 import { LocalDate } from '../../domain/shared/local-date.js';
 import { MealSlot } from '../../domain/shared/meal-slot.js';
-import { DailyBrief } from '../daily-brief.js';
+import { BriefStockAlert, DailyBrief } from '../daily-brief.js';
 
 export interface ReactionPromptIngredient {
   readonly ingredientId: string;
@@ -13,6 +13,12 @@ export interface ReactionPrompt {
   readonly date: LocalDate;
   readonly slot: MealSlot;
   readonly ingredients: readonly ReactionPromptIngredient[];
+}
+
+/** ADR 0010의 재고 알람 메시지. 브리프가 계산한 항목을 그날 날짜와 함께 싣는다. */
+export interface StockAlertMessage {
+  readonly date: LocalDate;
+  readonly alert: BriefStockAlert;
 }
 
 /**
