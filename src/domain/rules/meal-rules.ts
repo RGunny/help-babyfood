@@ -1,6 +1,7 @@
+import { IngredientCatalog } from '../ingredient/ingredient-catalog.js';
 import { CalendarDay } from '../meal-plan/calendar-projection.js';
 import { Meal, effectiveComposition } from '../meal-plan/meal.js';
-import { Menu, expandToCubeNeeds } from '../menu/menu.js';
+import { Menu, expandToEatenIngredientIds } from '../menu/menu.js';
 import { LocalDate } from '../shared/local-date.js';
 import { MealSlot } from '../shared/meal-slot.js';
 
@@ -37,6 +38,8 @@ export interface ValidateMealPlanInput {
   /** Consecutive dates in ascending order, as `projectCalendar` returns them. */
   readonly days: readonly CalendarDay[];
   readonly menus: ReadonlyMap<string, Menu>;
+  /** Resolves a blend to its constituents: every check below is about what the baby eats. */
+  readonly catalog: IngredientCatalog;
   readonly rules: MealPlanningRules;
   /** Ingredients fed before the first day, including those registered as verified at migration. */
   readonly alreadyFedIngredientIds: ReadonlySet<string>;
@@ -57,9 +60,7 @@ export function validateMealPlan(input: ValidateMealPlanInput): RuleWarning[] {
       .map((entry) => ({
         slot: entry.slot,
         meal: entry.meal,
-        ingredientIds: expandToCubeNeeds(effectiveComposition(entry.meal), input.menus).map(
-          (need) => need.ingredientId,
-        ),
+        ingredientIds: expandToEatenIngredientIds(effectiveComposition(entry.meal), input.menus, input.catalog),
       }));
     const hasPlannedMeal = mealsOfDay.some(({ meal }) => meal.status === 'planned');
 

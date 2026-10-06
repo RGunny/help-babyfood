@@ -12,10 +12,10 @@ import {
 import { FeedingHistory, RecordedReaction } from './ports/feeding-history.port.js';
 
 const INGREDIENTS: Ingredient[] = [
-  { id: 'rice', name: '쌀', aliases: [], category: 'base', servingWeightGram: 30, stockTracking: 'cubes' },
-  { id: 'oatmeal', name: '오트밀', aliases: [], category: 'base', servingWeightGram: 10, stockTracking: 'cubes' },
-  { id: 'pea', name: '완두콩', aliases: [], category: 'vegetable', servingWeightGram: 15, stockTracking: 'cubes' },
-  { id: 'peanut', name: '땅콩버터', aliases: [], category: 'high_risk_allergen', servingWeightGram: 5, stockTracking: 'cubes' },
+  { id: 'rice', name: '쌀', aliases: [], category: 'base', servingWeightGram: 30, stockTracking: 'cubes', constituentIngredientIds: [] },
+  { id: 'oatmeal', name: '오트밀', aliases: [], category: 'base', servingWeightGram: 10, stockTracking: 'cubes', constituentIngredientIds: [] },
+  { id: 'pea', name: '완두콩', aliases: [], category: 'vegetable', servingWeightGram: 15, stockTracking: 'cubes', constituentIngredientIds: [] },
+  { id: 'peanut', name: '땅콩버터', aliases: [], category: 'high_risk_allergen', servingWeightGram: 5, stockTracking: 'cubes', constituentIngredientIds: [] },
 ];
 
 const MENUS = new Map<string, Menu>([

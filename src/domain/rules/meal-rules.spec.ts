@@ -1,3 +1,5 @@
+import { Ingredient } from '../ingredient/ingredient.js';
+import { IngredientCatalog } from '../ingredient/ingredient-catalog.js';
 import { projectCalendar } from '../meal-plan/calendar-projection.js';
 import { Meal } from '../meal-plan/meal.js';
 import { MealCalendar, NoFeedRecord, SlotSchedule } from '../meal-plan/meal-calendar.js';
@@ -11,6 +13,34 @@ const morning: SlotSchedule = { slot: 'morning', startDate: localDate('2026-08-1
 const afternoon: SlotSchedule = { slot: 'afternoon', startDate: localDate('2026-08-17'), mealTime: localTime('17:00') };
 const menus = new Map<string, Menu>([
   ['rice-porridge', { id: 'rice-porridge', name: '쌀죽', components: [{ ingredientId: 'rice', cubes: 1 }] }],
+  [
+    'rice-brown-rice-porridge',
+    { id: 'rice-brown-rice-porridge', name: '쌀현미죽', components: [{ ingredientId: 'rice-brown-rice', cubes: 1 }] },
+  ],
+]);
+const ingredient = (id: string, constituentIngredientIds: string[] = []): Ingredient => ({
+  id,
+  name: id,
+  aliases: [],
+  category: 'vegetable',
+  servingWeightGram: 15,
+  stockTracking: 'cubes',
+  constituentIngredientIds,
+});
+const catalog = new IngredientCatalog([
+  ...[
+    'rice',
+    'brown-rice',
+    'beef',
+    'broccoli',
+    'sweet-potato',
+    'peanut-butter',
+    'peas',
+    'egg',
+    'zucchini',
+    'pumpkin',
+  ].map((id) => ingredient(id)),
+  ingredient('rice-brown-rice', ['rice', 'brown-rice']),
 ]);
 const rules: MealPlanningRules = {
   forbiddenPairings: [{ ingredientIds: ['beef', 'sweet-potato'], scope: 'same_meal' }],
@@ -28,6 +58,10 @@ const meal = (slot: MealSlot, order: number, toppings: string[], status: Meal['s
   status,
   migrated: false,
 });
+const blendMeal = (slot: MealSlot, order: number, toppings: string[] = []): Meal => ({
+  ...meal(slot, order, toppings),
+  planned: { baseMenuId: 'rice-brown-rice-porridge', toppingIngredientIds: toppings },
+});
 
 const validate = (
   meals: Meal[],
@@ -37,6 +71,7 @@ const validate = (
   return validateMealPlan({
     days: projectCalendar(meals, calendar, localDate('2026-08-17'), localDate('2026-08-23')),
     menus,
+    catalog,
     rules: options.rules ?? rules,
     alreadyFedIngredientIds: new Set(options.alreadyFed ?? ['rice']),
     reactedIngredientIds: new Set(options.reacted ?? []),
@@ -136,6 +171,51 @@ describe('식단 제약 검증', () => {
     const meals = [meal('morning', 1, []), meal('afternoon', 1, ['beef', 'broccoli', 'sweet-potato'])];
 
     expect(validate(meals, { rules: noRules })).toEqual([]);
+  });
+});
+
+describe('합침 재료가 든 식단의 검증', () => {
+  it('합침 재료에 처음 먹는 구성 재료가 있으면 그 구성 재료가 첫 도입이다', () => {
+    const meals = [meal('morning', 1, []), blendMeal('afternoon', 1)];
+
+    expect(validate(meals)).toEqual([
+      {
+        code: 'FIRST_INTRODUCTION_IN_WRONG_SLOT',
+        date: '2026-08-17',
+        slot: 'afternoon',
+        ingredientIds: ['brown-rice'],
+      },
+    ]);
+  });
+
+  it('구성 재료를 모두 먹인 적이 있는 합침 재료는 첫 도입이 아니다', () => {
+    const meals = [meal('morning', 1, []), blendMeal('afternoon', 1)];
+
+    expect(validate(meals, { alreadyFed: ['rice', 'brown-rice'] })).toEqual([]);
+  });
+
+  it('반응 있었던 재료가 합침 재료의 구성에 있으면 경고한다', () => {
+    const meals = [blendMeal('morning', 1)];
+
+    expect(validate(meals, { alreadyFed: ['rice', 'brown-rice'], reacted: ['brown-rice'] })).toEqual([
+      { code: 'REACTED_INGREDIENT_PLANNED', date: '2026-08-17', slot: 'morning', ingredientIds: ['brown-rice'] },
+    ]);
+  });
+
+  it('금지 조합은 합침 재료의 구성 재료에도 걸린다', () => {
+    const blendRules: MealPlanningRules = {
+      ...rules,
+      forbiddenPairings: [
+        { ingredientIds: ['brown-rice', 'beef'], scope: 'same_meal' },
+        { ingredientIds: ['brown-rice', 'sweet-potato'], scope: 'same_day' },
+      ],
+    };
+    const meals = [blendMeal('morning', 1, ['beef']), meal('afternoon', 1, ['sweet-potato'])];
+
+    expect(validate(meals, { alreadyFed: ['rice', 'brown-rice', 'beef', 'sweet-potato'], rules: blendRules })).toEqual([
+      { code: 'FORBIDDEN_PAIRING', date: '2026-08-17', slot: 'morning', ingredientIds: ['brown-rice', 'beef'] },
+      { code: 'FORBIDDEN_PAIRING', date: '2026-08-17', slot: null, ingredientIds: ['brown-rice', 'sweet-potato'] },
+    ]);
   });
 });
 

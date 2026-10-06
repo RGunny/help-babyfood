@@ -98,6 +98,7 @@ export class MealPlanImportService {
         warnings: validateMealPlan({
           days,
           menus: state.menus,
+          catalog: state.catalog,
           rules: state.rules,
           alreadyFedIngredientIds: fedIngredientIdsBefore(history, state.calendar, state.menus, from),
           reactedIngredientIds: reactedIngredientIds(statuses),

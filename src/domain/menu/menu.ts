@@ -1,5 +1,6 @@
 import { DomainError } from '../errors.js';
 import { CubeNeed } from '../ingredient/ingredient.js';
+import { IngredientCatalog } from '../ingredient/ingredient-catalog.js';
 
 /** A named base such as "쌀오트밀죽", made of ingredient cubes. */
 export interface Menu {
@@ -30,4 +31,20 @@ export function expandToCubeNeeds(composition: MealComposition, menus: ReadonlyM
   for (const ingredientId of composition.toppingIngredientIds) add(ingredientId, 1);
 
   return [...cubesByIngredient].map(([ingredientId, cubes]) => ({ ingredientId, cubes }));
+}
+
+/**
+ * Ingredients the baby eats in a meal: the cube needs with each blend replaced by its constituents.
+ * No id appears twice, so a meal holding a blend and one of its constituents feeds that ingredient once.
+ */
+export function expandToEatenIngredientIds(
+  composition: MealComposition,
+  menus: ReadonlyMap<string, Menu>,
+  catalog: IngredientCatalog,
+): string[] {
+  const eaten = new Set<string>();
+  for (const need of expandToCubeNeeds(composition, menus)) {
+    for (const ingredientId of catalog.eatenIngredientIds(need.ingredientId)) eaten.add(ingredientId);
+  }
+  return [...eaten];
 }

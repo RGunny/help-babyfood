@@ -1,5 +1,5 @@
 import { DomainError } from '../errors.js';
-import { Ingredient } from './ingredient.js';
+import { Ingredient, isBlend } from './ingredient.js';
 import { IngredientCatalog } from './ingredient-catalog.js';
 import { IngredientFeeding, introductionStatus, needsObservation, nextExposureNumber } from './introduction-status.js';
 
@@ -10,6 +10,7 @@ const broccoli: Ingredient = {
   category: 'vegetable',
   servingWeightGram: 15,
   stockTracking: 'cubes',
+  constituentIngredientIds: [],
 };
 const beef: Ingredient = {
   id: 'beef',
@@ -18,6 +19,7 @@ const beef: Ingredient = {
   category: 'meat',
   servingWeightGram: 10,
   stockTracking: 'cubes',
+  constituentIngredientIds: [],
 };
 
 describe('IngredientCatalog', () => {
@@ -59,6 +61,69 @@ describe('IngredientCatalog', () => {
     const redundant: Ingredient = { ...broccoli, aliases: ['브로콜리'] };
 
     expect(new IngredientCatalog([redundant]).findByName('브로콜리')).toBe(redundant);
+  });
+});
+
+describe('합침 재료', () => {
+  const base = (id: string, name: string, constituentIngredientIds: string[] = []): Ingredient => ({
+    id,
+    name,
+    aliases: [],
+    category: 'base',
+    servingWeightGram: 30,
+    stockTracking: 'cubes',
+    constituentIngredientIds,
+  });
+  const rice = base('rice', '쌀');
+  const oatmeal = base('oatmeal', '오트밀');
+  const riceOatmeal = base('rice-oatmeal', '쌀오트밀', ['rice', 'oatmeal']);
+  const invalidBlend = (ingredients: Ingredient[]) => {
+    try {
+      new IngredientCatalog(ingredients);
+    } catch (error) {
+      return error instanceof DomainError ? error.code : error;
+    }
+    return null;
+  };
+
+  it('합침 재료는 구성 재료가 둘 이상이어야 한다', () => {
+    expect(invalidBlend([rice, base('rice-only', '쌀만', ['rice'])])).toBe('INVALID_BLEND');
+    expect(invalidBlend([rice, oatmeal, riceOatmeal])).toBeNull();
+  });
+
+  it('구성 재료에 같은 재료를 두 번 넣을 수 없다', () => {
+    expect(invalidBlend([rice, base('double-rice', '쌀쌀', ['rice', 'rice'])])).toBe('INVALID_BLEND');
+  });
+
+  it('합침 재료는 자기 자신을 구성 재료로 가질 수 없다', () => {
+    expect(() => new IngredientCatalog([rice, base('rice-self', '쌀자신', ['rice', 'rice-self'])])).toThrow(
+      '자기 자신',
+    );
+  });
+
+  it('등록되지 않은 재료는 구성 재료가 될 수 없다', () => {
+    expect(invalidBlend([rice, riceOatmeal])).toBe('INVALID_BLEND');
+  });
+
+  it('구성 재료는 합침 재료보다 뒤에 놓여 있어도 등록된 재료다', () => {
+    expect(invalidBlend([riceOatmeal, oatmeal, rice])).toBeNull();
+  });
+
+  it('합침 재료는 다른 합침 재료의 구성 재료가 될 수 없다', () => {
+    const nested = base('rice-oatmeal-beef', '쌀오트밀소고기', ['rice-oatmeal', 'beef']);
+
+    expect(invalidBlend([rice, oatmeal, beef, riceOatmeal, nested])).toBe('INVALID_BLEND');
+    expect(invalidBlend([nested, riceOatmeal, beef, oatmeal, rice])).toBe('INVALID_BLEND');
+  });
+
+  it('합침 재료가 먹인 재료는 구성 재료이고 일반 재료는 자기 자신이다', () => {
+    const catalog = new IngredientCatalog([rice, oatmeal, riceOatmeal]);
+
+    expect(isBlend(riceOatmeal)).toBe(true);
+    expect(isBlend(rice)).toBe(false);
+    expect(catalog.eatenIngredientIds('rice-oatmeal')).toEqual(['rice', 'oatmeal']);
+    expect(catalog.eatenIngredientIds('rice')).toEqual(['rice']);
+    expect(() => catalog.eatenIngredientIds('brown-rice')).toThrow(DomainError);
   });
 });
 

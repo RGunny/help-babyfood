@@ -5,8 +5,8 @@ import { ApplicationError } from './errors.js';
 import { normalizePairings } from './rules.service.js';
 
 const INGREDIENTS: Ingredient[] = [
-  { id: 'aaa', name: '소고기', aliases: [], category: 'meat', servingWeightGram: 10, stockTracking: 'cubes' },
-  { id: 'bbb', name: '고구마', aliases: ['고구메'], category: 'vegetable', servingWeightGram: 15, stockTracking: 'cubes' },
+  { id: 'aaa', name: '소고기', aliases: [], category: 'meat', servingWeightGram: 10, stockTracking: 'cubes', constituentIngredientIds: [] },
+  { id: 'bbb', name: '고구마', aliases: ['고구메'], category: 'vegetable', servingWeightGram: 15, stockTracking: 'cubes', constituentIngredientIds: [] },
 ];
 
 const catalog = new IngredientCatalog(INGREDIENTS);

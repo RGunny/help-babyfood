@@ -14,6 +14,7 @@ const ingredient = (id: string, servingWeightGram = 15, stockTracking: StockTrac
   category: 'vegetable',
   servingWeightGram,
   stockTracking,
+  constituentIngredientIds: [],
 });
 const beef = ingredient('beef', 10);
 const cucumber = ingredient('cucumber');

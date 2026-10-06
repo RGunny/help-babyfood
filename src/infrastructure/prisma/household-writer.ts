@@ -354,6 +354,7 @@ class PrismaWriteContext implements HouseholdWriteContext {
       category: draft.category,
       servingWeightGram: draft.servingWeightGram,
       stockTracking: draft.stockTracking,
+      constituentIngredientIds: [],
     };
   }
 

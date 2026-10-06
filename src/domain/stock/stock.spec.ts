@@ -21,6 +21,7 @@ const broccoli: Ingredient = {
   category: 'vegetable',
   servingWeightGram: 15,
   stockTracking: 'cubes',
+  constituentIngredientIds: [],
 };
 const beef: Ingredient = {
   id: 'beef',
@@ -29,6 +30,7 @@ const beef: Ingredient = {
   category: 'meat',
   servingWeightGram: 10,
   stockTracking: 'cubes',
+  constituentIngredientIds: [],
 };
 const egg: Ingredient = {
   id: 'egg',
@@ -37,6 +39,7 @@ const egg: Ingredient = {
   category: 'high_risk_allergen',
   servingWeightGram: 10,
   stockTracking: 'pantry',
+  constituentIngredientIds: [],
 };
 
 const batch = (id: string, cookedOn: string, overrides: Partial<CookedBatch> = {}): CookedBatch => ({

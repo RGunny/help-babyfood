@@ -37,6 +37,7 @@ describe('재료 매핑', () => {
       category: 'vegetable',
       servingWeightGram: 15,
       stockTracking: 'cubes',
+      constituentIngredientIds: [],
     });
   });
 

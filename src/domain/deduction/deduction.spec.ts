@@ -18,6 +18,7 @@ const ingredient = (id: string, servingWeightGram: number, stockTracking: StockT
   category: 'vegetable',
   servingWeightGram,
   stockTracking,
+  constituentIngredientIds: [],
 });
 const catalog = new IngredientCatalog([
   ingredient('rice', 30),

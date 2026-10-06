@@ -15,6 +15,17 @@ export interface Ingredient {
    * them, nothing is held for them, and they appear in no stock table or forecast.
    */
   readonly stockTracking: StockTracking;
+  /**
+   * Ingredients a blend cube is made of, such as 쌀 and 오트밀 for "쌀오트밀". Empty for a plain
+   * ingredient. A blend is still one stock unit: batches, deduction and forecast use its own id.
+   * Only what the baby ate is read through this list (ADR 0011).
+   */
+  readonly constituentIngredientIds: readonly string[];
+}
+
+/** A blend is an ingredient that has constituents. */
+export function isBlend(ingredient: Ingredient): boolean {
+  return ingredient.constituentIngredientIds.length > 0;
 }
 
 /** Number of cubes of one ingredient. */

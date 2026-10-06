@@ -33,6 +33,7 @@ export function toIngredient(row: IngredientRow): Ingredient {
     category: row.category,
     servingWeightGram: row.servingWeightGram,
     stockTracking: row.stockTracking,
+    constituentIngredientIds: [],
   };
 }
 
