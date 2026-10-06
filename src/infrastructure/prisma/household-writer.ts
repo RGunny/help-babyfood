@@ -347,6 +347,15 @@ class PrismaWriteContext implements HouseholdWriteContext {
         position,
       })),
     });
+    // 구성은 등록 때 한 번만 쓴다. 바꾸거나 지우는 길은 없다(ADR 0011).
+    if (draft.constituentIngredientIds.length > 0) {
+      await this.tx.ingredientConstituent.createMany({
+        data: draft.constituentIngredientIds.map((constituentIngredientId) => ({
+          blendIngredientId: row.id,
+          constituentIngredientId,
+        })),
+      });
+    }
     return {
       id: row.id,
       name: draft.name,
@@ -354,7 +363,7 @@ class PrismaWriteContext implements HouseholdWriteContext {
       category: draft.category,
       servingWeightGram: draft.servingWeightGram,
       stockTracking: draft.stockTracking,
-      constituentIngredientIds: [],
+      constituentIngredientIds: draft.constituentIngredientIds,
     };
   }
 

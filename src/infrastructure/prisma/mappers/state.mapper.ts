@@ -20,6 +20,7 @@ export interface IngredientRow {
   servingWeightGram: number;
   stockTracking: Ingredient['stockTracking'];
   labels: { label: string; isCanonical: boolean; position: number }[];
+  constituents: { constituentIngredientId: string }[];
 }
 
 export function toIngredient(row: IngredientRow): Ingredient {
@@ -33,7 +34,7 @@ export function toIngredient(row: IngredientRow): Ingredient {
     category: row.category,
     servingWeightGram: row.servingWeightGram,
     stockTracking: row.stockTracking,
-    constituentIngredientIds: [],
+    constituentIngredientIds: row.constituents.map((constituent) => constituent.constituentIngredientId),
   };
 }
 

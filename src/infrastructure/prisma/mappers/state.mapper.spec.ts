@@ -29,6 +29,7 @@ describe('재료 매핑', () => {
           { label: '브로콜리', isCanonical: true, position: 0 },
           { label: '브로컬리', isCanonical: false, position: 1 },
         ],
+        constituents: [],
       }),
     ).toEqual({
       id: 'broccoli',
@@ -53,6 +54,7 @@ describe('재료 매핑', () => {
         { label: '브로콜리', isCanonical: true, position: 0 },
         { label: '첫번째', isCanonical: false, position: 1 },
       ],
+      constituents: [],
     });
     expect(ingredient.aliases).toEqual(['첫번째', '두번째']);
   });
@@ -65,8 +67,22 @@ describe('재료 매핑', () => {
       servingWeightGram: 30,
       stockTracking: 'cubes',
       labels: [{ label: '쌀', isCanonical: true, position: 0 }],
+      constituents: [],
     });
     expect(ingredient.aliases).toEqual([]);
+  });
+
+  it('구성 행이 재료의 구성 재료 id가 된다', () => {
+    const ingredient = toIngredient({
+      id: 'rice-oatmeal',
+      name: '쌀오트밀',
+      category: 'base',
+      servingWeightGram: 50,
+      stockTracking: 'cubes',
+      labels: [{ label: '쌀오트밀', isCanonical: true, position: 0 }],
+      constituents: [{ constituentIngredientId: 'oatmeal' }, { constituentIngredientId: 'rice' }],
+    });
+    expect(ingredient.constituentIngredientIds).toEqual(['oatmeal', 'rice']);
   });
 });
 

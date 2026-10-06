@@ -51,7 +51,10 @@ export class PrismaHouseholdStateRepository {
     // 끼니 시작일 이후의 미급여 기록이 하나라도 빠지면 날짜를 틀리게 계산하므로 전부 읽는다.
     const ingredientRows = await tx.ingredient.findMany({
       where: { householdId },
-      include: { labels: { select: { label: true, isCanonical: true, position: true } } },
+      include: {
+        labels: { select: { label: true, isCanonical: true, position: true } },
+        constituents: { select: { constituentIngredientId: true }, orderBy: { constituentIngredientId: 'asc' } },
+      },
       orderBy: { createdAt: 'asc' },
     });
     const menuRows = await tx.menu.findMany({
