@@ -1,4 +1,5 @@
 import { Ingredient } from '../domain/ingredient/ingredient.js';
+import { IngredientCatalog } from '../domain/ingredient/ingredient-catalog.js';
 import { Meal } from '../domain/meal-plan/meal.js';
 import { MealCalendar } from '../domain/meal-plan/meal-calendar.js';
 import { Menu } from '../domain/menu/menu.js';
@@ -24,6 +25,8 @@ const MENUS = new Map<string, Menu>([
     { id: 'porridge', name: '쌀오트밀죽', components: [{ ingredientId: 'rice', cubes: 1 }] },
   ],
 ]);
+
+const CATALOG = new IngredientCatalog(INGREDIENTS);
 
 const CALENDAR = new MealCalendar(
   [{ slot: 'morning', startDate: localDate('2026-08-17'), mealTime: localTime('10:00') }],
@@ -60,7 +63,7 @@ const clear = (mealId: string, ingredientId: string): RecordedReaction => ({
 });
 
 const statusOf = (input: FeedingHistory, ingredientId: string) =>
-  introductionStatuses(input, INGREDIENTS, MENUS).get(ingredientId);
+  introductionStatuses(input, INGREDIENTS, MENUS, CATALOG).get(ingredientId);
 
 describe('도입 상태', () => {
   it('먹인 적이 없으면 미도입이다', () => {
@@ -134,7 +137,7 @@ describe('도입 상태', () => {
   });
 
   it('등록된 모든 재료가 한 줄씩 나온다', () => {
-    const statuses = introductionStatuses(history(), INGREDIENTS, MENUS);
+    const statuses = introductionStatuses(history(), INGREDIENTS, MENUS, CATALOG);
     expect([...statuses.keys()]).toEqual(['rice', 'oatmeal', 'pea', 'peanut']);
   });
 });
@@ -148,7 +151,7 @@ describe('반응있음 재료', () => {
         clear('meal-2', 'peanut'),
       ],
     });
-    const reacted = reactedIngredientIds(introductionStatuses(input, INGREDIENTS, MENUS));
+    const reacted = reactedIngredientIds(introductionStatuses(input, INGREDIENTS, MENUS, CATALOG));
     expect([...reacted]).toEqual(['pea']);
   });
 });
@@ -157,19 +160,70 @@ describe('이전에 먹인 재료', () => {
   it('기준 날짜보다 앞선 식단의 재료만 센다', () => {
     const input = history({ consumedMeals: [meal(1, ['pea']), meal(2, ['peanut'])] });
     // 1번은 8/17, 2번은 8/18이다.
-    const fed = fedIngredientIdsBefore(input, CALENDAR, MENUS, localDate('2026-08-18'));
+    const fed = fedIngredientIdsBefore(input, CALENDAR, MENUS, CATALOG, localDate('2026-08-18'));
     expect([...fed].sort()).toEqual(['pea', 'rice']);
   });
 
   it('이관 때 검증완료로 등록한 재료는 급여 이력이 없어도 먹인 것으로 센다', () => {
     const input = history({ verifiedBeforeMigrationIds: new Set(['peanut']) });
-    const fed = fedIngredientIdsBefore(input, CALENDAR, MENUS, localDate('2026-08-18'));
+    const fed = fedIngredientIdsBefore(input, CALENDAR, MENUS, CATALOG, localDate('2026-08-18'));
     expect([...fed]).toEqual(['peanut']);
   });
 
   it('설정되지 않은 끼니의 식단은 날짜를 알 수 없으므로 건너뛴다', () => {
     const input = history({ consumedMeals: [meal(1, ['pea'], { slot: 'afternoon' })] });
-    const fed = fedIngredientIdsBefore(input, CALENDAR, MENUS, localDate('2026-09-01'));
+    const fed = fedIngredientIdsBefore(input, CALENDAR, MENUS, CATALOG, localDate('2026-09-01'));
     expect([...fed]).toEqual([]);
+  });
+});
+
+describe('합침 재료', () => {
+  const RICE_OATMEAL: Ingredient = {
+    id: 'rice-oatmeal',
+    name: '쌀오트밀',
+    aliases: [],
+    category: 'base',
+    servingWeightGram: 50,
+    stockTracking: 'cubes',
+    constituentIngredientIds: ['rice', 'oatmeal'],
+  };
+  const WITH_BLEND = [...INGREDIENTS, RICE_OATMEAL];
+  const BLEND_CATALOG = new IngredientCatalog(WITH_BLEND);
+  const BLEND_MENUS = new Map<string, Menu>([
+    [
+      'blend-porridge',
+      {
+        id: 'blend-porridge',
+        name: '쌀오트밀합침죽',
+        components: [
+          { ingredientId: 'rice-oatmeal', cubes: 1 },
+          { ingredientId: 'rice', cubes: 1 },
+        ],
+      },
+    ],
+  ]);
+  const blendMeal = (order: number): Meal =>
+    meal(order, [], { planned: { baseMenuId: 'blend-porridge', toppingIngredientIds: [] } });
+
+  it('합침 재료를 먹인 급여는 구성 재료의 급여로 센다', () => {
+    const input = history({
+      consumedMeals: [blendMeal(1)],
+      reactions: [clear('meal-1', 'oatmeal')],
+    });
+    const statuses = introductionStatuses(input, WITH_BLEND, BLEND_MENUS, BLEND_CATALOG);
+
+    // 한 끼에 합침 재료와 그 구성 재료가 함께 있어도 급여는 한 번이다.
+    expect(statuses.get('rice')).toEqual({ kind: 'verifying', clearCount: 0, unrecordedCount: 1 });
+    expect(statuses.get('oatmeal')).toEqual({ kind: 'verifying', clearCount: 1, unrecordedCount: 0 });
+    const fed = fedIngredientIdsBefore(input, CALENDAR, BLEND_MENUS, BLEND_CATALOG, localDate('2026-08-18'));
+    expect([...fed].sort()).toEqual(['oatmeal', 'rice']);
+  });
+
+  it('합침 재료 자체는 도입 상태가 없다', () => {
+    const input = history({ consumedMeals: [blendMeal(1)] });
+    const statuses = introductionStatuses(input, WITH_BLEND, BLEND_MENUS, BLEND_CATALOG);
+
+    expect(statuses.has('rice-oatmeal')).toBe(false);
+    expect([...statuses.keys()]).toEqual(['rice', 'oatmeal', 'pea', 'peanut']);
   });
 });

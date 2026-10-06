@@ -1,6 +1,6 @@
 import { ApplicationError } from '../../src/application/errors.js';
 import { DomainError } from '../../src/domain/errors.js';
-import { IntroductionStatus } from '../../src/domain/ingredient/introduction-status.js';
+import { IngredientIntroduction } from '../../src/application/reaction.service.js';
 import { localDate } from '../../src/domain/shared/local-date.js';
 import { INGREDIENTS, TestServices, at, buildServices, seedHousehold } from './setup/fixtures.js';
 
@@ -19,6 +19,9 @@ afterEach(() => {
 });
 
 type Household = Awaited<ReturnType<typeof seedHousehold>>;
+
+/** A row's status: an ingredient's introduction status, or a blend's constituents. */
+type IntroductionStatus = IngredientIntroduction['status'];
 
 /** Three morning meals fed on 8/17, 8/18 and 8/19, with stock for all of them. */
 async function fedHousehold(): Promise<Household> {
@@ -196,5 +199,63 @@ describe('도입 상태 조회', () => {
       clearCount: 0,
       unrecordedCount: 2,
     });
+  });
+});
+
+describe('합침 재료의 반응 기록', () => {
+  /** 8/17 오전에 쌀오트밀합침죽을 먹인 집. 합침 큐브는 쌀과 오트밀로 만들었다. */
+  async function blendFedHousehold(): Promise<Household> {
+    const house = await seedHousehold(services, { mealCount: 0 });
+    await services.ingredient.registerBlend({
+      householdId: house.id,
+      actor: house.actor,
+      name: '쌀오트밀',
+      category: 'base',
+      servingWeightGram: 40,
+      constituentNames: ['쌀', '오트밀'],
+    });
+    await services.menu.register({
+      householdId: house.id,
+      actor: house.actor,
+      name: '쌀오트밀합침죽',
+      components: [{ ingredientName: '쌀오트밀', cubes: 1 }],
+    });
+    await services.mealPlan.appendMeals({
+      householdId: house.id,
+      actor: house.actor,
+      slot: 'morning',
+      meals: [{ composition: { baseMenuName: '쌀오트밀합침죽', toppingIngredientNames: [] } }],
+    });
+    await services.stock.registerCookedBatch({
+      householdId: house.id,
+      actor: house.actor,
+      ingredientName: '쌀오트밀',
+      cubeWeightGram: 40,
+      cookedOn: localDate('2026-08-15'),
+      cubes: 6,
+    });
+    services.clock.set('2026-08-17', '11:00');
+    await services.reconcile.run(house.id);
+    return house;
+  }
+
+  it('합침 재료를 먹인 끼니에 구성 재료의 반응을 기록할 수 있다', async () => {
+    const house = await blendFedHousehold();
+
+    await react(house, '2026-08-17', '오트밀');
+
+    expect(await statusOf(house, '오트밀')).toEqual({ kind: 'verifying', clearCount: 1, unrecordedCount: 0 });
+    expect(await statusOf(house, '쌀')).toEqual({ kind: 'verifying', clearCount: 0, unrecordedCount: 1 });
+  });
+
+  it('합침 재료 이름으로는 반응을 기록할 수 없다', async () => {
+    const house = await blendFedHousehold();
+
+    await expect(react(house, '2026-08-17', '쌀오트밀')).rejects.toMatchObject({
+      code: 'BLEND_HAS_NO_REACTION',
+      message: '합침 재료에는 반응을 기록하지 않습니다. 구성 재료로 기록하세요: 쌀, 오트밀',
+    });
+    await expect(react(house, '2026-08-17', '쌀오트밀')).rejects.toThrow(ApplicationError);
+    expect(await services.prisma.feedingReaction.count({ where: { householdId: house.id } })).toBe(0);
   });
 });

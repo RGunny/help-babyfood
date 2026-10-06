@@ -1,3 +1,4 @@
+import { ApplicationError } from '../../src/application/errors.js';
 import { DomainError } from '../../src/domain/errors.js';
 import { localDate } from '../../src/domain/shared/local-date.js';
 import { Household, TestServices, at, buildServices, seedHousehold } from './setup/fixtures.js';
@@ -301,5 +302,46 @@ describe('달력 조회', () => {
       localDate('2026-08-20'),
     );
     expect(days[0]?.slots[0]?.meal).toBeNull();
+  });
+});
+
+describe('합침 재료와 토핑', () => {
+  it('합침 재료는 토핑으로 넣을 수 없다', async () => {
+    const house = await settled();
+    await services.ingredient.registerBlend({
+      householdId: house.id,
+      actor: house.actor,
+      name: '쌀오트밀',
+      category: 'base',
+      servingWeightGram: 40,
+      constituentNames: ['쌀', '오트밀'],
+    });
+    const composition = { baseMenuName: '쌀오트밀죽', toppingIngredientNames: ['소고기', '쌀오트밀'] };
+
+    await expect(
+      services.mealPlan.updatePlannedMeal({
+        householdId: house.id,
+        actor: house.actor,
+        date: localDate('2026-08-18'),
+        slot: 'morning',
+        composition,
+      }),
+    ).rejects.toMatchObject({
+      code: 'BLEND_AS_TOPPING',
+      message: '합침 재료는 메뉴 구성으로만 쓸 수 있습니다: 쌀오트밀',
+    });
+    await expect(
+      services.mealPlan.updateMealActualItems({
+        householdId: house.id,
+        actor: house.actor,
+        date: localDate('2026-08-17'),
+        slot: 'morning',
+        composition,
+      }),
+    ).rejects.toThrow(ApplicationError);
+
+    expect(await services.prisma.mealActual.count({ where: { meal: { householdId: house.id } } })).toBe(0);
+    expect(await remainingOf(house, '소고기')).toBe(9);
+    await expectProjectionMatchesLedger(house);
   });
 });

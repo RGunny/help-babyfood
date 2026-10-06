@@ -92,7 +92,7 @@ export class MealPlanImportService {
         from,
         meals[meals.length - 1]?.date ?? from,
       );
-      const statuses = introductionStatuses(history, state.ingredients, state.menus);
+      const statuses = introductionStatuses(history, state.ingredients, state.menus, state.catalog);
       return {
         meals,
         warnings: validateMealPlan({
@@ -100,7 +100,13 @@ export class MealPlanImportService {
           menus: state.menus,
           catalog: state.catalog,
           rules: state.rules,
-          alreadyFedIngredientIds: fedIngredientIdsBefore(history, state.calendar, state.menus, from),
+          alreadyFedIngredientIds: fedIngredientIdsBefore(
+            history,
+            state.calendar,
+            state.menus,
+            state.catalog,
+            from,
+          ),
           reactedIngredientIds: reactedIngredientIds(statuses),
         }),
       };

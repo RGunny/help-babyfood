@@ -76,6 +76,8 @@ interface Fixture {
   readonly reactions?: readonly RecordedReaction[];
   readonly verified?: readonly string[];
   readonly today?: string;
+  readonly ingredients?: readonly Ingredient[];
+  readonly menus?: readonly Menu[];
 }
 
 /**
@@ -86,14 +88,12 @@ function board(fixture: Fixture = {}): HouseholdBoard {
   const schedules = fixture.schedules ?? [{ slot: 'morning', startDate: localDate(START), mealTime: localTime('10:00') }];
   const meals = fixture.meals ?? plainMeals(35, 27);
   const calendar = new MealCalendar(schedules, fixture.noFeedRecords ?? []);
+  const ingredients = fixture.ingredients ?? INGREDIENTS;
   const state: HouseholdState = {
     householdId: 'household',
-    ingredients: INGREDIENTS,
-    catalog: new IngredientCatalog(INGREDIENTS),
-    menus: new Map([
-      [PORRIDGE.id, PORRIDGE],
-      [FLOUR_PORRIDGE.id, FLOUR_PORRIDGE],
-    ]),
+    ingredients,
+    catalog: new IngredientCatalog(ingredients),
+    menus: new Map((fixture.menus ?? [PORRIDGE, FLOUR_PORRIDGE]).map((menu) => [menu.id, menu])),
     calendar,
     meals,
     nextMealOrders: new Map([['morning', meals.length + 1]]),
@@ -290,5 +290,45 @@ describe('상태판의 회차', () => {
       { ingredientId: 'flour', name: '밀가루', exposureNumber: 1, reacted: false },
     ]);
     expect(morningOf(result, TODAY).meal?.watchedBaseIngredients).toEqual([]);
+  });
+});
+
+describe('상태판의 합침 재료', () => {
+  const BROWN_RICE: Ingredient = {
+    id: 'brown-rice',
+    name: '현미',
+    aliases: [],
+    category: 'base',
+    servingWeightGram: 10,
+    stockTracking: 'cubes',
+    constituentIngredientIds: [],
+  };
+  const RICE_BROWN_OATMEAL: Ingredient = {
+    id: 'rice-brown-oatmeal',
+    name: '쌀현미오트밀',
+    aliases: [],
+    category: 'base',
+    servingWeightGram: 50,
+    stockTracking: 'cubes',
+    constituentIngredientIds: ['rice', 'brown-rice', 'oatmeal'],
+  };
+  const BLEND_PORRIDGE: Menu = {
+    id: 'blend-porridge',
+    name: '쌀현미오트밀죽',
+    components: [{ ingredientId: RICE_BROWN_OATMEAL.id, cubes: 1 }],
+  };
+
+  it('베이스 메뉴의 합침 재료는 관찰이 필요한 구성 재료로 풀려 표시된다', () => {
+    // 쌀과 오트밀은 검증완료라 빠지고, 처음 먹는 현미만 ①로 남는다.
+    const result = board({
+      ingredients: [...INGREDIENTS, BROWN_RICE, RICE_BROWN_OATMEAL],
+      menus: [PORRIDGE, BLEND_PORRIDGE],
+      meals: [...plainMeals(27, 27), meal({ order: 28, menuId: BLEND_PORRIDGE.id })],
+    });
+
+    expect(morningOf(result, '2026-09-27').meal).toMatchObject({
+      menuName: '쌀현미오트밀죽',
+      watchedBaseIngredients: [{ ingredientId: 'brown-rice', name: '현미', exposureNumber: 1, reacted: false }],
+    });
   });
 });

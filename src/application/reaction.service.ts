@@ -1,5 +1,5 @@
 import { DomainError } from '../domain/errors.js';
-import { Ingredient, StockTracking } from '../domain/ingredient/ingredient.js';
+import { Ingredient, StockTracking, isBlend } from '../domain/ingredient/ingredient.js';
 import { FeedingReaction, IntroductionStatus } from '../domain/ingredient/introduction-status.js';
 import { Meal } from '../domain/meal-plan/meal.js';
 import { LocalDate } from '../domain/shared/local-date.js';
@@ -21,11 +21,17 @@ export interface RecordReactionCommand {
   readonly symptomMemo?: string | null;
 }
 
+/** A blend has no status of its own: what parents watch is its constituents. */
+export interface BlendIntroduction {
+  readonly kind: 'blend';
+  readonly constituentNames: readonly string[];
+}
+
 /** What the brief shows per ingredient: the state and the exposure number to announce. */
 export interface IngredientIntroduction {
   readonly ingredientId: string;
   readonly name: string;
-  readonly status: IntroductionStatus;
+  readonly status: IntroductionStatus | BlendIntroduction;
   readonly stockTracking: StockTracking;
 }
 
@@ -61,7 +67,14 @@ export class ReactionService {
         const state = await context.load({ sinceDate: command.date });
         const meal = mealFedOn(state, command.slot, command.date);
         const ingredient = requireIngredient(state, command.ingredientName);
-        if (!ingredientIdsOf(meal, state.menus).includes(ingredient.id)) {
+        if (isBlend(ingredient)) {
+          const constituentNames = constituentNamesOf(state, ingredient).join(', ');
+          throw new ApplicationError(
+            'BLEND_HAS_NO_REACTION',
+            `합침 재료에는 반응을 기록하지 않습니다. 구성 재료로 기록하세요: ${constituentNames}`,
+          );
+        }
+        if (!ingredientIdsOf(meal, state.menus, state.catalog).includes(ingredient.id)) {
           throw new ApplicationError(
             'INGREDIENT_NOT_IN_MEAL',
             `그 식단에 없는 재료입니다: ${command.ingredientName}`,
@@ -81,11 +94,13 @@ export class ReactionService {
   async getIntroductionStatus(householdId: string): Promise<IngredientIntroduction[]> {
     const history = await this.history.load(householdId);
     return await this.reader.read(householdId, (state) => {
-      const statuses = introductionStatuses(history, state.ingredients, state.menus);
+      const statuses = introductionStatuses(history, state.ingredients, state.menus, state.catalog);
       return state.ingredients.map((ingredient) => ({
         ingredientId: ingredient.id,
         name: ingredient.name,
-        status: statuses.get(ingredient.id)!,
+        status: isBlend(ingredient)
+          ? { kind: 'blend' as const, constituentNames: constituentNamesOf(state, ingredient) }
+          : statuses.get(ingredient.id)!,
         stockTracking: ingredient.stockTracking,
       }));
     });
@@ -99,6 +114,10 @@ function mealFedOn(state: HouseholdState, slot: MealSlot, date: LocalDate): Meal
     throw new ApplicationError('MEAL_NOT_FED', `아직 먹이지 않은 식단입니다: ${date} ${slot}`);
   }
   return meal;
+}
+
+function constituentNamesOf(state: HouseholdState, blend: Ingredient): string[] {
+  return blend.constituentIngredientIds.map((id) => state.catalog.getById(id).name);
 }
 
 function requireIngredient(state: HouseholdState, name: string): Ingredient {

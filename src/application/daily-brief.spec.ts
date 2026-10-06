@@ -103,6 +103,8 @@ interface Fixture {
   readonly thresholds?: ReadonlyMap<string, number>;
   readonly history?: Partial<FeedingHistory>;
   readonly at?: string;
+  readonly ingredients?: readonly Ingredient[];
+  readonly menus?: readonly Menu[];
 }
 
 /**
@@ -122,11 +124,12 @@ function brief(fixture: Fixture = {}): DailyBrief {
     fixture.noFeedRecords ?? [],
   );
   const { batches, entries } = fixture.stock ?? DEFAULT_STOCK;
+  const ingredients = fixture.ingredients ?? INGREDIENTS;
   const state: HouseholdState = {
     householdId: 'household',
-    ingredients: INGREDIENTS,
-    catalog: new IngredientCatalog(INGREDIENTS),
-    menus: new Map([[PORRIDGE.id, PORRIDGE]]),
+    ingredients,
+    catalog: new IngredientCatalog(ingredients),
+    menus: new Map((fixture.menus ?? [PORRIDGE]).map((menu) => [menu.id, menu])),
     calendar,
     meals: fixture.meals ?? [
       meal(1, ['beef', 'pea']),
@@ -647,5 +650,79 @@ describe('데일리 브리프', () => {
       expect(today.attention.planRunwayDays).toBeNull();
       expect(today.attention.planRunwayShort).toBe(true);
     });
+  });
+});
+
+describe('합침 재료가 든 브리프', () => {
+  /** 쌀과 완두콩을 섞은 큐브. 쌀은 검증완료이고 완두콩은 아직 지켜보는 중이다. */
+  const RICE_PEA: Ingredient = {
+    id: 'rice-pea',
+    name: '쌀완두콩',
+    aliases: [],
+    category: 'base',
+    servingWeightGram: 45,
+    stockTracking: 'cubes',
+    constituentIngredientIds: ['rice', 'pea'],
+  };
+  const BLEND_PORRIDGE: Menu = {
+    id: 'blend-porridge',
+    name: '쌀완두콩죽',
+    components: [{ ingredientId: RICE_PEA.id, cubes: 1 }],
+  };
+  const blendMeal = (order: number, overrides: Partial<Meal> = {}): Meal =>
+    meal(order, [], { planned: { baseMenuId: BLEND_PORRIDGE.id, toppingIngredientIds: [] }, ...overrides });
+  const blendStock = (cubes: number) => {
+    const batch: CookedBatch = {
+      id: 'rice-pea-batch',
+      ingredientId: RICE_PEA.id,
+      cubeWeightGram: RICE_PEA.servingWeightGram,
+      cookedOn: localDate('2026-09-15'),
+    };
+    const entry: LedgerEntry = { batchId: batch.id, type: 'received', delta: cubes, mealId: null, reason: null };
+    return { batches: [batch], entries: [entry] };
+  };
+  const withBlend = { ingredients: [...INGREDIENTS, RICE_PEA], menus: [PORRIDGE, BLEND_PORRIDGE] };
+
+  it('합침 재료의 구성 재료가 검증중이면 그 구성 재료가 새 재료로 뜬다', () => {
+    const fed = blendMeal(1, { id: 'fed', status: 'consumed' });
+
+    const today = brief({
+      ...withBlend,
+      meals: [blendMeal(1)],
+      stock: blendStock(5),
+      history: { consumedMeals: [fed], reactions: [clear('fed', 'pea')] },
+    });
+
+    expect(today.newIngredients).toEqual([
+      { ingredientId: 'pea', name: '완두콩', slot: 'morning', exposureNumber: 2 },
+    ]);
+  });
+
+  it('합침 재료의 재고 알람과 재고 행은 합침 재료 이름으로 나온다', () => {
+    // 합침 큐브 하나가 오늘 식단을 덮고 내일 식단부터 모자란다. 구성 재료의 큐브는 쓰이지 않는다.
+    const today = brief({
+      ...withBlend,
+      meals: [blendMeal(1), blendMeal(2), blendMeal(3)],
+      stock: blendStock(1),
+      thresholds: new Map([[RICE_PEA.id, 2]]),
+    });
+
+    expect(today.stock.find((row) => row.ingredientId === RICE_PEA.id)).toMatchObject({
+      name: '쌀완두콩',
+      total: 1,
+      firstShortageDate: dateOf(1),
+    });
+    expect(today.stockAlert.items).toEqual([
+      {
+        ingredientId: RICE_PEA.id,
+        name: '쌀완두콩',
+        total: 1,
+        thresholdCubes: 2,
+        firstShortageDate: dateOf(1),
+        daysUntilShortage: 1,
+        horizonShortfallCubes: 2,
+        urgency: 'urgent',
+      },
+    ]);
   });
 });

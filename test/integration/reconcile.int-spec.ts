@@ -470,3 +470,60 @@ describe('수행자 기록', () => {
     ).toBe(true);
   });
 });
+
+describe('합침 재료의 차감', () => {
+  it('합침 재료 메뉴의 끼니는 합침 큐브를 차감하고 구성 재료의 큐브는 건드리지 않는다', async () => {
+    const house = await seedHousehold(services, { mealCount: 0 });
+    await services.ingredient.registerBlend({
+      householdId: house.id,
+      actor: house.actor,
+      name: '쌀오트밀',
+      category: 'base',
+      servingWeightGram: 40,
+      constituentNames: ['쌀', '오트밀'],
+    });
+    await services.menu.register({
+      householdId: house.id,
+      actor: house.actor,
+      name: '쌀오트밀합침죽',
+      components: [{ ingredientName: '쌀오트밀', cubes: 1 }],
+    });
+    await services.mealPlan.appendMeals({
+      householdId: house.id,
+      actor: house.actor,
+      slot: 'morning',
+      meals: [{ composition: { baseMenuName: '쌀오트밀합침죽', toppingIngredientNames: [] } }],
+    });
+    const weights: [string, number][] = [
+      ['쌀', 30],
+      ['오트밀', 10],
+      ['쌀오트밀', 40],
+    ];
+    for (const [name, weight] of weights) {
+      await services.stock.registerCookedBatch({
+        householdId: house.id,
+        actor: house.actor,
+        ingredientName: name,
+        cubeWeightGram: weight,
+        cookedOn: localDate('2026-08-15'),
+        cubes: 10,
+      });
+    }
+    const blendId = (await services.prisma.ingredient.findFirstOrThrow({
+      where: { householdId: house.id, name: '쌀오트밀' },
+    })).id;
+    services.clock.set('2026-08-17', '10:00');
+
+    const report = await services.reconcile.run(house.id);
+
+    expect(report.consumedMealIds).toHaveLength(1);
+    expect(report.held).toEqual([]);
+    const blendBatches = await services.prisma.cookedBatch.findMany({
+      where: { householdId: house.id, ingredientId: blendId },
+    });
+    expect(blendBatches.map((batch) => batch.remainingCubes)).toEqual([9]);
+    expect(await remainingOf(house, '쌀')).toBe(10);
+    expect(await remainingOf(house, '오트밀')).toBe(10);
+    await expectProjectionMatchesLedger(house);
+  });
+});

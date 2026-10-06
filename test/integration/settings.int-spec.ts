@@ -247,3 +247,23 @@ describe('알람 설정', () => {
     ).rejects.toThrow(DomainError);
   });
 });
+
+describe('합침 재료와 금지 조합', () => {
+  it('금지 조합에 합침 재료를 넣을 수 없다', async () => {
+    const house = await household();
+    await services.ingredient.registerBlend({
+      householdId: house.id,
+      actor: house.actor,
+      name: '쌀오트밀',
+      category: 'base',
+      servingWeightGram: 40,
+      constituentNames: ['쌀', '오트밀'],
+    });
+
+    await expect(updateRules(house, [['소고기', '쌀오트밀', 'same_day']])).rejects.toMatchObject({
+      code: 'BLEND_IN_PAIRING',
+    });
+    await expect(updateRules(house, [['쌀오트밀', '애호박', 'same_meal']])).rejects.toThrow(ApplicationError);
+    expect(await services.prisma.mealPlanningRules.count({ where: { householdId: house.id } })).toBe(0);
+  });
+});

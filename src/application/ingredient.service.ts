@@ -17,6 +17,18 @@ export interface RegisterIngredientCommand {
   readonly verifiedBeforeMigration?: boolean;
 }
 
+export interface RegisterBlendCommand {
+  readonly householdId: string;
+  readonly actor: Actor;
+  readonly idempotencyKey?: string;
+  readonly name: string;
+  readonly aliases?: readonly string[];
+  readonly category: IngredientCategory;
+  readonly servingWeightGram: number;
+  /** The ingredients the cube is made of, named as the parent says them: ["쌀", "오트밀"]. */
+  readonly constituentNames: readonly string[];
+}
+
 export interface AddIngredientAliasCommand {
   readonly householdId: string;
   readonly actor: Actor;
@@ -75,6 +87,46 @@ export class IngredientService {
           verifiedBeforeMigration: command.verifiedBeforeMigration ?? false,
         };
         // 카탈로그 생성자가 이름·별칭 충돌을 던진다. 같은 규칙을 애플리케이션에 다시 쓰지 않는다.
+        new IngredientCatalog([...state.ingredients, { ...draft, id: 'candidate' }]);
+        return await context.insertIngredient(draft);
+      },
+    );
+  }
+
+  /**
+   * Ingredients frozen together as one cube, such as 쌀 and 오트밀 as "쌀오트밀". Stock counts the
+   * blend and feedings count its constituents. The constituents never change after registration: a
+   * new mix is a new blend (ADR 0011).
+   */
+  async registerBlend(command: RegisterBlendCommand): Promise<Ingredient> {
+    return await this.writer.write(
+      {
+        householdId: command.householdId,
+        actor: command.actor,
+        operation: 'register_blend_ingredient',
+        idempotencyKey: command.idempotencyKey,
+        payload: {
+          name: command.name,
+          aliases: command.aliases,
+          category: command.category,
+          servingWeightGram: command.servingWeightGram,
+          constituentNames: command.constituentNames,
+        },
+      },
+      async (context) => {
+        const state = await context.load();
+        const draft = {
+          name: command.name,
+          aliases: command.aliases ?? [],
+          category: command.category,
+          servingWeightGram: requirePositiveWeight(command.servingWeightGram),
+          stockTracking: 'cubes' as const,
+          constituentIngredientIds: command.constituentNames.map(
+            (name) => requireIngredient(state.catalog, name).id,
+          ),
+          verifiedBeforeMigration: false,
+        };
+        // 카탈로그 생성자가 이름 충돌과 구성 규칙(INVALID_BLEND)을 던진다.
         new IngredientCatalog([...state.ingredients, { ...draft, id: 'candidate' }]);
         return await context.insertIngredient(draft);
       },

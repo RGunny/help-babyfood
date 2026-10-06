@@ -7,7 +7,7 @@ import {
 import { CalendarDay, lastPlannedMealDate, projectCalendar } from '../domain/meal-plan/calendar-projection.js';
 import { Meal, effectiveComposition } from '../domain/meal-plan/meal.js';
 import { NoFeedRecord } from '../domain/meal-plan/meal-calendar.js';
-import { expandToCubeNeeds } from '../domain/menu/menu.js';
+import { expandToEatenIngredientIds } from '../domain/menu/menu.js';
 import { RuleWarningCode, validateMealPlan } from '../domain/rules/meal-rules.js';
 import { LocalDate, addDays, daysBetween } from '../domain/shared/local-date.js';
 import { LocalDateTime, LocalTime } from '../domain/shared/local-time.js';
@@ -236,7 +236,7 @@ export function buildDailyBrief(input: DailyBriefInput): DailyBrief {
   const today = input.now.date;
   const nameOf = (ingredientId: string): string => state.catalog.getById(ingredientId).name;
 
-  const statuses = introductionStatuses(history, state.ingredients, state.menus);
+  const statuses = introductionStatuses(history, state.ingredients, state.menus, state.catalog);
   const lastPlanned = lastPlannedMealDate(state.meals, state.calendar);
   // 오늘 한 줄과 규칙 검증이 같은 투영을 쓴다. 경고는 남은 식단 전체를 본다. 조합 위반이나
   // 반응있음 재료는 그 날짜가 오기 전에 고쳐야 하고, 고칠 때까지 매일 다시 올라와야 한다.
@@ -333,7 +333,13 @@ export function buildDailyBrief(input: DailyBriefInput): DailyBrief {
         menus: state.menus,
         catalog: state.catalog,
         rules: state.rules,
-        alreadyFedIngredientIds: fedIngredientIdsBefore(history, state.calendar, state.menus, today),
+        alreadyFedIngredientIds: fedIngredientIdsBefore(
+          history,
+          state.calendar,
+          state.menus,
+          state.catalog,
+          today,
+        ),
         reactedIngredientIds: reactedIngredientIds(statuses),
       }).map((warning) => ({
         code: warning.code,
@@ -394,13 +400,14 @@ function newIngredientsOf(
   const newIngredients: BriefNewIngredient[] = [];
   for (const entry of day.slots) {
     if (entry.meal === null) continue;
-    for (const need of expandToCubeNeeds(effectiveComposition(entry.meal), state.menus)) {
-      const status = statuses.get(need.ingredientId);
+    const composition = effectiveComposition(entry.meal);
+    for (const ingredientId of expandToEatenIngredientIds(composition, state.menus, state.catalog)) {
+      const status = statuses.get(ingredientId);
       const exposureNumber = status === undefined ? null : nextExposureNumber(status);
       if (status === undefined || !needsObservation(status) || exposureNumber === null) continue;
       newIngredients.push({
-        ingredientId: need.ingredientId,
-        name: nameOf(need.ingredientId),
+        ingredientId,
+        name: nameOf(ingredientId),
         slot: entry.slot,
         exposureNumber,
       });
@@ -487,16 +494,17 @@ function unrecordedReactionsOf(
   const unrecorded: BriefUnrecordedReaction[] = [];
   for (const meal of history.consumedMeals) {
     if (meal.migrated || !state.calendar.hasSlot(meal.slot)) continue;
-    for (const need of expandToCubeNeeds(effectiveComposition(meal), state.menus)) {
-      const status = statuses.get(need.ingredientId);
+    const composition = effectiveComposition(meal);
+    for (const ingredientId of expandToEatenIngredientIds(composition, state.menus, state.catalog)) {
+      const status = statuses.get(ingredientId);
       if (status === undefined || !needsObservation(status)) continue;
       const recorded = history.reactions.some(
-        (reaction) => reaction.mealId === meal.id && reaction.ingredientId === need.ingredientId,
+        (reaction) => reaction.mealId === meal.id && reaction.ingredientId === ingredientId,
       );
       if (recorded) continue;
       unrecorded.push({
-        ingredientId: need.ingredientId,
-        name: nameOf(need.ingredientId),
+        ingredientId,
+        name: nameOf(ingredientId),
         date: state.calendar.dateOf(meal.slot, meal.order),
         slot: meal.slot,
       });

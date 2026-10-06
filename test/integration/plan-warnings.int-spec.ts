@@ -259,3 +259,65 @@ describe('식단 경고', () => {
     expect(warnings.map((warning) => warning.code)).toContain('FIRST_INTRODUCTION_IN_WRONG_SLOT');
   });
 });
+
+describe('합침 재료의 식단 경고', () => {
+  it('합침 재료에 처음 먹는 구성 재료가 있으면 첫 도입 경고는 그 구성 재료를 가리킨다', async () => {
+    const house = await household(0);
+    const oat = await services.ingredient.register({
+      householdId: house.id,
+      actor: house.actor,
+      name: '귀리',
+      category: 'base',
+      servingWeightGram: 10,
+      verifiedBeforeMigration: true,
+    });
+    const brownRice = await services.ingredient.register({
+      householdId: house.id,
+      actor: house.actor,
+      name: '현미',
+      category: 'base',
+      servingWeightGram: 10,
+    });
+    const blend = await services.ingredient.registerBlend({
+      householdId: house.id,
+      actor: house.actor,
+      name: '귀리현미',
+      category: 'base',
+      servingWeightGram: 20,
+      constituentNames: ['귀리', '현미'],
+    });
+    await services.menu.register({
+      householdId: house.id,
+      actor: house.actor,
+      name: '귀리현미죽',
+      components: [{ ingredientName: '귀리현미', cubes: 1 }],
+    });
+    await services.mealSlot.start({
+      householdId: house.id,
+      actor: house.actor,
+      slot: 'afternoon',
+      startDate: localDate('2026-08-17'),
+      mealTime: localTime('18:00'),
+    });
+    await services.mealPlan.appendMeals({
+      householdId: house.id,
+      actor: house.actor,
+      slot: 'afternoon',
+      meals: [{ composition: { baseMenuName: '귀리현미죽', toppingIngredientNames: [] } }],
+    });
+
+    const warnings = await warningsOf(house, '2026-08-17', '2026-08-17');
+
+    // 귀리는 이관 때 검증이 끝났고, 합침 재료 자체는 먹인 재료가 아니다.
+    expect(warnings).toEqual([
+      {
+        code: 'FIRST_INTRODUCTION_IN_WRONG_SLOT',
+        date: localDate('2026-08-17'),
+        slot: 'afternoon',
+        ingredientIds: [brownRice.id],
+      },
+    ]);
+    expect(warnings[0]?.ingredientIds).not.toContain(blend.id);
+    expect(warnings[0]?.ingredientIds).not.toContain(oat.id);
+  });
+});

@@ -3,7 +3,7 @@ import { FeedingReaction } from '../domain/ingredient/introduction-status.js';
 import { CalendarSlotEntry, lastPlannedMealDate, projectCalendar } from '../domain/meal-plan/calendar-projection.js';
 import { Meal, effectiveComposition } from '../domain/meal-plan/meal.js';
 import { NoFeedRecord } from '../domain/meal-plan/meal-calendar.js';
-import { expandToCubeNeeds } from '../domain/menu/menu.js';
+import { expandToEatenIngredientIds } from '../domain/menu/menu.js';
 import { LocalDate, addDays, daysBetween } from '../domain/shared/local-date.js';
 import { LocalDateTime } from '../domain/shared/local-time.js';
 import { MealSlot } from '../domain/shared/meal-slot.js';
@@ -113,10 +113,17 @@ export function buildHouseholdBoard(input: DailyBriefInput): HouseholdBoard {
   }));
 
   const exposures = projectExposures({
-    initialStatuses: introductionStatuses(historyBefore(history, state, windowStart), state.ingredients, state.menus),
+    initialStatuses: introductionStatuses(
+      historyBefore(history, state, windowStart),
+      state.ingredients,
+      state.menus,
+      state.catalog,
+    ),
     meals: days.flatMap((day) => day.slots.flatMap((entry) => exposureMealOf(state, history, entry))),
   });
-  const reacted = reactedIngredientIds(introductionStatuses(history, state.ingredients, state.menus));
+  const reacted = reactedIngredientIds(
+    introductionStatuses(history, state.ingredients, state.menus, state.catalog),
+  );
 
   const boardDays: BoardDay[] = days.map((day) => ({
     date: day.date,
@@ -177,7 +184,7 @@ function exposureMealOf(state: HouseholdState, history: FeedingHistory, entry: C
   return [
     {
       mealId: meal.id,
-      ingredientIds: expandToCubeNeeds(effectiveComposition(meal), state.menus).map((need) => need.ingredientId),
+      ingredientIds: expandToEatenIngredientIds(effectiveComposition(meal), state.menus, state.catalog),
       fed: meal.status === 'consumed',
       reactions,
     },
@@ -200,8 +207,15 @@ function boardMealOf(
   const menu = composition.baseMenuId === null ? null : (state.menus.get(composition.baseMenuId) ?? null);
   return {
     menuName: menu?.name ?? null,
-    watchedBaseIngredients: (menu?.components ?? [])
-      .map((component) => ingredientOf(component.ingredientId))
+    // 합침 재료는 구성 재료로 풀어 보인다. 지켜볼 것은 큐브가 아니라 먹인 재료다.
+    watchedBaseIngredients: [
+      ...new Set(
+        (menu?.components ?? []).flatMap((component) =>
+          state.catalog.eatenIngredientIds(component.ingredientId),
+        ),
+      ),
+    ]
+      .map(ingredientOf)
       .filter((ingredient) => ingredient.exposureNumber !== null || ingredient.reacted),
     toppings: composition.toppingIngredientIds.map(ingredientOf),
     memo: meal.memo,

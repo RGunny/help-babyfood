@@ -1,4 +1,5 @@
 import { DomainError } from '../domain/errors.js';
+import { isBlend } from '../domain/ingredient/ingredient.js';
 import { IngredientCatalog } from '../domain/ingredient/ingredient-catalog.js';
 import { ForbiddenPairing, MealPlanningRules } from '../domain/rules/meal-rules.js';
 import { MealSlot } from '../domain/shared/meal-slot.js';
@@ -87,6 +88,13 @@ export function normalizePairings(
       const ingredient = catalog.findByName(name);
       if (ingredient === null) {
         throw new DomainError('UNKNOWN_INGREDIENT', `등록되지 않은 재료입니다: ${name}`);
+      }
+      // 규칙 검증은 구성 재료로 풀린 id만 보므로 합침 재료를 넣은 조합은 영영 걸리지 않는다.
+      if (isBlend(ingredient)) {
+        throw new ApplicationError(
+          'BLEND_IN_PAIRING',
+          `합침 재료는 조합 금지에 넣을 수 없습니다. 구성 재료로 적으세요: ${ingredient.name}`,
+        );
       }
       return ingredient.id;
     });

@@ -15,7 +15,10 @@ export type ApplicationErrorCode =
   | 'INVALID_PAIRING'
   | 'INVALID_THRESHOLD'
   | 'PANTRY_WITH_STOCK'
-  | 'PANTRY_INGREDIENT';
+  | 'PANTRY_INGREDIENT'
+  | 'BLEND_AS_TOPPING'
+  | 'BLEND_HAS_NO_REACTION'
+  | 'BLEND_IN_PAIRING';
 
 export class ApplicationError extends Error {
   constructor(

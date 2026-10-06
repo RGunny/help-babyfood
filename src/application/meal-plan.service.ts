@@ -171,7 +171,7 @@ export class MealPlanService {
       householdId,
       (state) => {
         const days = projectCalendar(state.meals, state.calendar, from, to);
-        const statuses = introductionStatuses(history, state.ingredients, state.menus);
+        const statuses = introductionStatuses(history, state.ingredients, state.menus, state.catalog);
         return {
           days,
           warnings: validateMealPlan({
@@ -179,7 +179,13 @@ export class MealPlanService {
             menus: state.menus,
             catalog: state.catalog,
             rules: state.rules,
-            alreadyFedIngredientIds: fedIngredientIdsBefore(history, state.calendar, state.menus, from),
+            alreadyFedIngredientIds: fedIngredientIdsBefore(
+              history,
+              state.calendar,
+              state.menus,
+              state.catalog,
+              from,
+            ),
             reactedIngredientIds: reactedIngredientIds(statuses),
           }),
         };
