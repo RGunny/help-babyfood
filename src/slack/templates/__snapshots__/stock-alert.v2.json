@@ -1,0 +1,191 @@
+{
+  "text": "재고 알람: 소고기 내일부터 부족 외 4건",
+  "blocks": [
+    {
+      "type": "header",
+      "text": {
+        "type": "plain_text",
+        "text": "재고 알람 · 조리 필요 3건"
+      }
+    },
+    {
+      "type": "section",
+      "text": {
+        "type": "mrkdwn",
+        "text": "*조리 필요*"
+      }
+    },
+    {
+      "type": "table",
+      "rows": [
+        [
+          {
+            "type": "raw_text",
+            "text": "재료"
+          },
+          {
+            "type": "raw_text",
+            "text": "부족 시작"
+          },
+          {
+            "type": "raw_text",
+            "text": "재고"
+          },
+          {
+            "type": "raw_text",
+            "text": "7일 부족"
+          }
+        ],
+        [
+          {
+            "type": "raw_text",
+            "text": "🚨 소고기"
+          },
+          {
+            "type": "raw_text",
+            "text": "10-06 화 · 내일"
+          },
+          {
+            "type": "raw_text",
+            "text": "1"
+          },
+          {
+            "type": "raw_text",
+            "text": "6"
+          }
+        ],
+        [
+          {
+            "type": "raw_text",
+            "text": "브로콜리"
+          },
+          {
+            "type": "raw_text",
+            "text": "10-08 목 · D-3"
+          },
+          {
+            "type": "raw_text",
+            "text": "2"
+          },
+          {
+            "type": "raw_text",
+            "text": "3"
+          }
+        ],
+        [
+          {
+            "type": "raw_text",
+            "text": "당근"
+          },
+          {
+            "type": "raw_text",
+            "text": "10-11 일 · D-6"
+          },
+          {
+            "type": "raw_text",
+            "text": "3"
+          },
+          {
+            "type": "raw_text",
+            "text": "1"
+          }
+        ]
+      ],
+      "column_settings": [
+        {
+          "align": "left",
+          "is_wrapped": true
+        },
+        {
+          "align": "left",
+          "is_wrapped": false
+        },
+        {
+          "align": "right",
+          "is_wrapped": false
+        },
+        {
+          "align": "right",
+          "is_wrapped": false
+        }
+      ]
+    },
+    {
+      "type": "section",
+      "text": {
+        "type": "mrkdwn",
+        "text": "*임계개수 이하 · 7일 안에는 부족 없음*"
+      }
+    },
+    {
+      "type": "table",
+      "rows": [
+        [
+          {
+            "type": "raw_text",
+            "text": "재료"
+          },
+          {
+            "type": "raw_text",
+            "text": "부족 시작"
+          },
+          {
+            "type": "raw_text",
+            "text": "재고"
+          }
+        ],
+        [
+          {
+            "type": "raw_text",
+            "text": "단호박"
+          },
+          {
+            "type": "raw_text",
+            "text": "10-20 화"
+          },
+          {
+            "type": "raw_text",
+            "text": "3"
+          }
+        ],
+        [
+          {
+            "type": "raw_text",
+            "text": "오트밀"
+          },
+          {
+            "type": "raw_text",
+            "text": "–"
+          },
+          {
+            "type": "raw_text",
+            "text": "4"
+          }
+        ]
+      ],
+      "column_settings": [
+        {
+          "align": "left",
+          "is_wrapped": true
+        },
+        {
+          "align": "left",
+          "is_wrapped": false
+        },
+        {
+          "align": "right",
+          "is_wrapped": false
+        }
+      ]
+    },
+    {
+      "type": "context",
+      "elements": [
+        {
+          "type": "mrkdwn",
+          "text": "조리해 입고를 등록하면 다음 알람에서 빠집니다."
+        }
+      ]
+    }
+  ]
+}
