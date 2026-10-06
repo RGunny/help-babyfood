@@ -39,7 +39,7 @@ export function registerMenuTools(server: McpServer, deps: ToolDeps, caller: Cal
     {
       title: '메뉴 변경',
       description:
-        '메뉴의 이름이나 구성을 바꾼다. 구성은 통째로 갈아 끼우므로 남길 재료도 모두 적어야 한다.',
+        '메뉴의 이름이나 구성을 바꾼다. 구성은 통째로 갈아 끼우므로 남길 재료도 모두 적어야 한다. 구성을 바꾸면 이미 급여 완료된 끼니도 새 구성으로 다시 차감된다. 잘못 등록한 구성을 고칠 때만 쓰고, 조리 방식이 바뀐 것이면(예: 낱개 큐브에서 합침 큐브로) 새 메뉴를 등록한다.',
       inputSchema: z.object({
         idempotencyKey,
         currentName: z.string().describe('지금 저장돼 있는 이름.'),

@@ -30,6 +30,7 @@ const EXPECTED_TOOLS = [
   'get_alert_settings',
   'update_alert_settings',
   'register_ingredient',
+  'register_blend_ingredient',
   'add_ingredient_alias',
   'update_ingredient_serving_weight',
   'update_ingredient_stock_tracking',
@@ -968,5 +969,69 @@ describe('입력 검증', () => {
     });
 
     expect((result as { isError?: boolean }).isError).toBe(true);
+  });
+});
+
+describe('합침 재료', () => {
+  beforeEach(seedMasters);
+
+  const registerRiceOatmeal = async (constituentNames: string[] = ['쌀', '오트밀']) =>
+    await call('register_blend_ingredient', {
+      idempotencyKey: nextKey(),
+      name: '쌀오트밀',
+      category: 'base',
+      servingWeightGram: 50,
+      constituentNames,
+    });
+
+  it('합침 재료를 등록하면 구성 재료 둘을 가진 재료가 돌아온다', async () => {
+    const blend = await registerRiceOatmeal();
+
+    expect(blend.name).toBe('쌀오트밀');
+    expect(blend.constituentIngredientIds).toHaveLength(2);
+  });
+
+  it('도입 상태 조회는 합침 재료를 blend와 구성 재료 이름으로 돌려준다', async () => {
+    await registerRiceOatmeal();
+
+    const statuses = await call('get_ingredient_introduction_status');
+    const row = (name: string) => statuses.find((entry: any) => entry.ingredientName === name);
+    expect(row('쌀오트밀')).toEqual({
+      ingredientName: '쌀오트밀',
+      status: { kind: 'blend', constituentNames: ['쌀', '오트밀'] },
+      stockTracking: 'cubes',
+    });
+    expect(row('쌀')).toEqual({ ingredientName: '쌀', status: { kind: 'not_introduced' }, stockTracking: 'cubes' });
+    expect(row('오트밀')).toEqual({
+      ingredientName: '오트밀',
+      status: { kind: 'not_introduced' },
+      stockTracking: 'cubes',
+    });
+  });
+
+  it('구성 재료가 하나뿐인 합침 재료는 도메인 카탈로그가 INVALID_BLEND로 거부한다', async () => {
+    const error = await callExpectingError('register_blend_ingredient', {
+      idempotencyKey: nextKey(),
+      name: '쌀만',
+      category: 'base',
+      servingWeightGram: 30,
+      constituentNames: ['쌀'],
+    });
+
+    expect(error.code).toBe('INVALID_BLEND');
+  });
+
+  it('합침 재료를 토핑으로 넣으면 BLEND_AS_TOPPING으로 거부된다', async () => {
+    await registerRiceOatmeal();
+
+    const error = await callExpectingError('import_meal_plan', {
+      idempotencyKey: nextKey(),
+      dryRun: false,
+      slot: 'morning',
+      meals: [{ composition: { baseMenuName: '쌀오트밀죽', toppingIngredientNames: ['쌀오트밀'] } }],
+      fedThrough: null,
+    });
+
+    expect(error.code).toBe('BLEND_AS_TOPPING');
   });
 });

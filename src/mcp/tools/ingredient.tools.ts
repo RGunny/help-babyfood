@@ -33,6 +33,30 @@ export function registerIngredientTools(server: McpServer, deps: ToolDeps, calle
   );
 
   server.registerTool(
+    'register_blend_ingredient',
+    {
+      title: '합침 재료 등록',
+      description:
+        '두 재료 이상을 섞어 큐브 하나로 만든 재료를 등록한다(예: 쌀 30g과 오트밀 20g을 섞은 50g 큐브 "쌀오트밀"). 재고, 차감, 부족 예측, 임계개수는 합침 재료 하나로 세고, 도입 상태와 반응 기록은 구성 재료로 센다. 메뉴 구성으로만 쓸 수 있고 토핑으로는 넣을 수 없다. 구성 재료는 먼저 등록되어 있어야 하고 등록한 뒤에는 바꿀 수 없다. 결과의 constituentIngredientIds는 구성 재료의 id이고, 이름은 get_ingredient_introduction_status가 준다.',
+      inputSchema: z.object({
+        idempotencyKey,
+        name: z.string(),
+        aliases: z.array(z.string()).optional().describe('같은 재료를 가리키는 다른 이름들.'),
+        category: ingredientCategory,
+        servingWeightGram: z
+          .number()
+          .int()
+          .positive()
+          .describe('섞은 큐브 하나의 중량(g). 큐브 중량이 이 값과 다른 배치는 자동 차감에서 빠진다.'),
+        constituentNames: z
+          .array(z.string())
+          .describe('섞은 재료들의 이름 또는 별칭. 서로 다른 등록된 재료 둘 이상이다.'),
+      }),
+    },
+    async (args) => await toolResult(async () => await deps.ingredient.registerBlend({ ...caller, ...args })),
+  );
+
+  server.registerTool(
     'add_ingredient_alias',
     {
       title: '재료 별칭 추가',
