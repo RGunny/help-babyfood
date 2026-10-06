@@ -19,6 +19,7 @@
 | `docs/adr/0008-slack-canvas-board.md` | 채널 캔버스 상태판, `state_changed_at` 갱신 판정, 회차 투영 |
 | `docs/adr/0009-pantry-ingredients-and-expiry-notice.md` | 상비 재료, 재고 표의 임계일 열과 3일 전 강조 |
 | `docs/adr/0010-stock-alert-message.md` | 브리프와 별도인 재고 알람 메시지, 부족 시작일 순 재고 표 |
+| `docs/adr/0011-blend-ingredients.md` | 구성 재료를 가진 합침 재료, 재고는 큐브 하나로 급여는 구성 재료로 |
 
 규칙을 알고 싶으면 기획안 4장을 읽는다. 왜 그렇게 만들었는지는 ADR에 있다.
 
