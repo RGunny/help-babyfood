@@ -1,0 +1,114 @@
+{
+  "project": "help-babyfood",
+  "task": "blend-cube",
+  "prompt": "이제 앞으로는 쌀+오트밀(30+20) 합쳐서 큐브 만들거야. / (두 안을 보고, 구성 재료를 가진 합침 재료 안으로) 진행해",
+  "phases": [
+    {
+      "phase": 0,
+      "name": "docs",
+      "scope": [
+        "docs/",
+        "README.md"
+      ],
+      "model": "claude-fable-5-1"
+    },
+    {
+      "phase": 1,
+      "name": "schema",
+      "scope": [
+        "prisma/",
+        "test/integration/schema-constraints.int-spec.ts"
+      ],
+      "requires": [
+        "docker"
+      ],
+      "model": "claude-opus-5-5"
+    },
+    {
+      "phase": 2,
+      "name": "domain",
+      "scope": [
+        "src/domain/",
+        "src/application/ingredient.service.ts",
+        "src/application/daily-brief.ts",
+        "src/application/meal-plan.service.ts",
+        "src/application/meal-plan-import.service.ts",
+        "src/application/daily-brief.spec.ts",
+        "src/application/feeding-history.spec.ts",
+        "src/application/household-board.spec.ts",
+        "src/application/rules.spec.ts",
+        "src/infrastructure/prisma/mappers/state.mapper.ts",
+        "src/infrastructure/prisma/mappers/state.mapper.spec.ts",
+        "src/infrastructure/prisma/household-writer.ts"
+      ],
+      "unfreeze": [
+        "src/domain/"
+      ],
+      "model": "claude-fable-5-1"
+    },
+    {
+      "phase": 3,
+      "name": "persistence",
+      "scope": [
+        "src/infrastructure/",
+        "test/integration/blend-ingredient.int-spec.ts"
+      ],
+      "requires": [
+        "docker"
+      ],
+      "unfreeze": [
+        "src/domain/"
+      ],
+      "model": "claude-opus-5-5"
+    },
+    {
+      "phase": 4,
+      "name": "application",
+      "scope": [
+        "src/application/",
+        "test/integration/blend-ingredient.int-spec.ts",
+        "test/integration/reconcile.int-spec.ts",
+        "test/integration/reaction.int-spec.ts",
+        "test/integration/meal-plan.int-spec.ts",
+        "test/integration/settings.int-spec.ts",
+        "test/integration/plan-warnings.int-spec.ts"
+      ],
+      "requires": [
+        "docker"
+      ],
+      "unfreeze": [
+        "src/domain/"
+      ],
+      "model": "claude-opus-5-5"
+    },
+    {
+      "phase": 5,
+      "name": "mcp",
+      "scope": [
+        "src/mcp/",
+        "test/integration/mcp-tools.int-spec.ts"
+      ],
+      "requires": [
+        "docker"
+      ],
+      "unfreeze": [
+        "src/domain/"
+      ],
+      "model": "claude-opus-5-5"
+    },
+    {
+      "phase": 6,
+      "name": "break-it",
+      "scope": [
+        "tasks/4-blend-cube/"
+      ],
+      "requires": [
+        "docker"
+      ],
+      "unfreeze": [
+        "src/domain/"
+      ],
+      "model": "claude-opus-5-5"
+    }
+  ]
+}
