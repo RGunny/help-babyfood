@@ -277,3 +277,70 @@ describe('재고 알람 발송 이력', () => {
     );
   });
 });
+
+describe('합침 재료의 구성', () => {
+  const constraintNames = async (table: string) =>
+    (
+      await prisma.$queryRaw<{ conname: string }[]>`
+        SELECT conname FROM pg_constraint WHERE conrelid = ${table}::regclass
+      `
+    ).map(({ conname }) => conname);
+
+  const riceAndOatmeal = async () => {
+    const { id: householdId } = await household();
+    const [blend, rice, oatmeal] = await Promise.all(
+      ['쌀오트밀', '쌀', '오트밀'].map((name) =>
+        prisma.ingredient.create({
+          data: { householdId, name, category: 'base', servingWeightGram: 20, stockTracking: 'cubes' },
+          select: { id: true },
+        }),
+      ),
+    );
+    return { blend: blend.id, rice: rice.id, oatmeal: oatmeal.id };
+  };
+
+  it('합침 재료의 구성에 자기 자신 금지 제약과 두 FK가 걸려 있다', async () => {
+    expect(await constraintNames('ingredient_constituent')).toEqual(
+      expect.arrayContaining([
+        'ingredient_constituent_not_self_check',
+        'ingredient_constituent_blend_ingredient_id_fkey',
+        'ingredient_constituent_constituent_ingredient_id_fkey',
+      ]),
+    );
+  });
+
+  it('합침 재료는 자기 자신을 구성 재료로 가질 수 없다', async () => {
+    const { blend } = await riceAndOatmeal();
+    await expect(
+      prisma.ingredientConstituent.create({
+        data: { blendIngredientId: blend, constituentIngredientId: blend },
+      }),
+    ).rejects.toThrow(/ingredient_constituent_not_self_check/);
+  });
+
+  it('같은 구성 재료를 두 번 넣을 수 없다', async () => {
+    const { blend, rice } = await riceAndOatmeal();
+    await prisma.ingredientConstituent.create({ data: { blendIngredientId: blend, constituentIngredientId: rice } });
+    await expect(
+      prisma.ingredientConstituent.create({ data: { blendIngredientId: blend, constituentIngredientId: rice } }),
+    ).rejects.toThrow(/Unique constraint/);
+  });
+
+  it('구성 재료로 쓰이는 재료는 지울 수 없고, 합침 재료를 지우면 구성 행도 지워진다', async () => {
+    const { blend, rice, oatmeal } = await riceAndOatmeal();
+    await prisma.ingredientConstituent.createMany({
+      data: [
+        { blendIngredientId: blend, constituentIngredientId: rice },
+        { blendIngredientId: blend, constituentIngredientId: oatmeal },
+      ],
+    });
+
+    await expect(prisma.ingredient.delete({ where: { id: rice } })).rejects.toThrow(
+      /ingredient_constituent_constituent_ingredient_id_fkey/,
+    );
+
+    await prisma.ingredient.delete({ where: { id: blend } });
+    expect(await prisma.ingredientConstituent.count({ where: { blendIngredientId: blend } })).toBe(0);
+    expect(await prisma.ingredient.count({ where: { id: { in: [rice, oatmeal] } } })).toBe(2);
+  });
+});

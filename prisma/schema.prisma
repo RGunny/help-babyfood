@@ -230,6 +230,8 @@ model Ingredient {
   threshold        IngredientThreshold?
   pairingsAsA      ForbiddenPairing[]   @relation("pairing_a")
   pairingsAsB      ForbiddenPairing[]   @relation("pairing_b")
+  constituents     IngredientConstituent[] @relation("blend")
+  constituentOf    IngredientConstituent[] @relation("blend_constituent")
 
   @@index([householdId])
   @@map("ingredient")
@@ -284,6 +286,20 @@ model MenuComponent {
   @@id([menuId, ingredientId])
   @@index([ingredientId])
   @@map("menu_component")
+}
+
+/// 합침 재료의 구성. 쌀오트밀 큐브는 쌀과 오트밀로 만든다. 재고는 합침 재료로 세고
+/// 급여는 구성 재료로 센다(ADR 0011). 구성 재료별 중량은 읽는 곳이 없어 두지 않는다.
+model IngredientConstituent {
+  blendIngredientId       String @map("blend_ingredient_id") @db.Uuid
+  constituentIngredientId String @map("constituent_ingredient_id") @db.Uuid
+
+  blend       Ingredient @relation("blend", fields: [blendIngredientId], references: [id], onDelete: Cascade)
+  constituent Ingredient @relation("blend_constituent", fields: [constituentIngredientId], references: [id])
+
+  @@id([blendIngredientId, constituentIngredientId])
+  @@index([constituentIngredientId])
+  @@map("ingredient_constituent")
 }
 
 /// 재고의 단위. 같은 날 만든 같은 재료의 큐브는 구분하지 않는다.
